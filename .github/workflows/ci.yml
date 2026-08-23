@@ -48,6 +48,9 @@ jobs:
 
   docker:
     name: docker build
+    # Pushes to main and tags are built and published by publish.yml; this job
+    # exists so a pull request still proves the Dockerfile works.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

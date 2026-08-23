@@ -15,6 +15,10 @@ The fastest way to get the supporting services is the compose stack:
 docker compose up -d postgres redis nats minio
 ```
 
+The `sentio` service itself pulls `ghcr.io/truespar/sentio`. When testing your
+own changes, add `-f docker-compose.build.yml` so it is built from your
+checkout rather than pulled.
+
 ## Build and check
 
 ```bash

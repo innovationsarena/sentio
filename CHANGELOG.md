@@ -18,6 +18,10 @@ reaches 1.0.
 - Documented mailbox forwarding to external addresses, which rewrites `From:`
   and re-signs so forwarded mail still passes DMARC.
 - CI workflow, issue and pull request templates, changelog, and code of conduct.
+- Published container image at `ghcr.io/truespar/sentio` for `linux/amd64` and
+  `linux/arm64`, so the quickstart pulls instead of compiling. Each architecture
+  is built on a native runner and merged into one manifest.
+  `docker-compose.build.yml` still builds from a checkout.
 - Startup banner on `serve`, listing listeners, the API and reference URLs, and
   which backing services were reached. Suppressed under JSON logging.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `.env.example`.

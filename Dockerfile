@@ -25,6 +25,11 @@ RUN cargo build --release --bin sentio-smtp \
 # ── Runtime ──────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
 
+LABEL org.opencontainers.image.title="Sentio SMTP" \
+      org.opencontainers.image.description="Email inbox API for AI agents: a multi-tenant mail server in Rust" \
+      org.opencontainers.image.source="https://github.com/truespar/sentio" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \

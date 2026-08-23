@@ -27,6 +27,14 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
 scripts/e2e/run-e2e.sh
 ```
 
+That runs the published image. To exercise code you have changed, add the build
+overlay so the image comes from your checkout:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.test.yml \
+               -f docker-compose.build.yml up -d --build
+```
+
 Two flows are exercised:
 
 | Direction | Path |

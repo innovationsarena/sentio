@@ -1,0 +1,12 @@
+# Build the Sentio image from this checkout instead of pulling the published
+# one. Use when you have changed the code:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# The built image is tagged with the same name the base file references, so
+# everything else in the stack is unchanged.
+services:
+  sentio-migrate:
+    build: .
+  sentio:
+    build: .

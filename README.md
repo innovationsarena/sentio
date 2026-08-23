@@ -67,14 +67,23 @@ The compose stack brings up Sentio plus every service it needs: PostgreSQL,
 Redis, NATS/JetStream, MinIO, ClamAV, and rspamd.
 
 **Requirements:** Docker Engine 24+ with the Compose plugin, ~4 GB RAM, ~8 GB disk.
-The first build compiles the whole workspace in release mode and takes a while;
-later rebuilds reuse the cached dependency layer.
 
 ```bash
 git clone https://github.com/truespar/sentio.git
 cd sentio
-docker compose up -d --build
+docker compose up -d
 ```
+
+That pulls a prebuilt image - `ghcr.io/truespar/sentio`, published for
+`linux/amd64` and `linux/arm64` - so there is nothing to compile. To build from
+your own checkout instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+Expect that to take a while: it is a release build of the whole workspace.
+Pin a version with `SENTIO_TAG=1.2.3 docker compose up -d`.
 
 Watch it come up - migrations run once, then the server starts:
 

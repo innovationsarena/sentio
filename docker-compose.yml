@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Sentio SMTP - OSS quickstart docker-compose stack
 #
-#   docker compose up -d --build      # build sentio image + start everything
+#   docker compose up -d              # pull the published image + start everything
 #   docker compose logs -f sentio     # tail app logs
 #   docker compose down -v            # stop and wipe volumes
 #
@@ -159,8 +159,7 @@ services:
 
   # ── One-shot: run migrations + seed bootstrap tenant + API key ──────────
   sentio-migrate:
-    build: .
-    image: sentio-smtp:latest
+    image: ghcr.io/truespar/sentio:${SENTIO_TAG:-latest}
     restart: "no"
     depends_on:
       postgres: { condition: service_healthy }
@@ -171,8 +170,7 @@ services:
 
   # ── The application ─────────────────────────────────────────────────────
   sentio:
-    build: .
-    image: sentio-smtp:latest
+    image: ghcr.io/truespar/sentio:${SENTIO_TAG:-latest}
     restart: unless-stopped
     depends_on:
       sentio-migrate: { condition: service_completed_successfully }
