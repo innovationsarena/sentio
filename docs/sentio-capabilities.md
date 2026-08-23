@@ -115,7 +115,7 @@ Sentio implements a comprehensive set of email standards. All testable requireme
 | Feature | Description |
 |---------|-------------|
 | Full SMTP server | Standards-compliant inbound on port 25 with all ESMTP extensions |
-| Inbound webhooks | Parsed message data dispatched as structured HTTP events |
+| Inbound webhooks | Structured HTTP event per inbound message: identity, envelope, auth and spam verdicts, threading and loop-guard headers, plus a key for the stored original. Bodies and attachments are fetched separately via the messages API |
 | Per-address routing | Exact, regex, domain, and catch-all webhook routing rules |
 | MIME parsing | Headers, text/HTML body parts, and attachment metadata extraction |
 | Authentication verification | SPF, DKIM, DMARC, ARC validation on every inbound message |

@@ -58,18 +58,42 @@ curl -X POST "$API/v1/tenants/$TENANT/inbound-routes" \
   }'
 ```
 
-The payload arrives parsed - headers, text and HTML bodies, attachments - and
-already carries Sentio's verdicts. **Use them as an intake gate before you spend
-a single token.** SPF/DKIM/DMARC results, the spam score, and the virus scan
-result are all present; junk should be dropped or quarantined by your handler,
-not reasoned about by a model.
+**The payload is metadata, not content.** It carries the identity of the
+message (`message_id`, `tenant_id`, `envelope_from`, `envelope_to`), the
+verdicts (`spam_score`, `spam_action`, and `llm_category` / `llm_summary` when
+classification ran), threading (`in_reply_to`, `references`), the loop guards
+(`auto_submitted`, `list_id`, `precedence`), DSN parameters, and `raw_eml_key`.
+
+There are no bodies and no attachments in it. Fetch those only when you need
+them:
+
+    GET /v1/messages/{message_id}/raw
+    GET /v1/messages/{message_id}/attachments
+
+For an agent that split is a feature rather than an inconvenience. **Use the
+verdicts as an intake gate before you spend a single token** - drop or
+quarantine junk on the metadata alone and never move the body at all. Check the
+loop guards too: replying to something carrying `auto_submitted` or a `list_id`
+is how an agent ends up in a mail loop with another robot.
 
 Setting `llm_classify: true` asks Sentio to classify borderline mail for you,
 which is worth it on a catch-all route where anything can arrive.
 
-Answer webhooks fast and do the work asynchronously. Acknowledge with a 2xx once
-the message is durably enqueued on your side; Sentio retries non-2xx responses,
-and a slow handler turns into duplicate deliveries.
+Answer fast and do the work asynchronously: return 2xx once the message is
+durably enqueued on your side, not once the agent has finished thinking. How
+your response is read:
+
+| Response | Treated as |
+|---|---|
+| 2xx | Delivered |
+| 5xx, 408, 429 | Transient - retried |
+| Any other 4xx | Permanent - not retried |
+| Connection error or timeout | Transient - retried |
+
+Retries are scheduled through the queue rather than held in memory, so they
+survive a restart of the server. The practical consequence: a handler that
+blocks while a model runs will time out, be classified transient, and earn a
+duplicate delivery - so make your processing idempotent on `message_id`.
 
 ## Replying as the agent
 

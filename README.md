@@ -561,8 +561,8 @@ document the server serves at `/openapi.json`.
 
 ## Receiving mail
 
-Register a receiving domain, then attach a route that POSTs parsed messages to
-your application:
+Register a receiving domain, then attach a route that POSTs to your
+application when mail arrives:
 
 ```bash
 curl -X POST "$API/v1/domains" \
@@ -580,9 +580,64 @@ curl -X POST "$API/v1/tenants/$TENANT_ID/inbound-routes" \
 ```
 
 `match_type` is one of `exact`, `domain`, `regex`, or `catch_all`; lower
-`priority` wins. Every inbound message is SPF/DKIM/DMARC/ARC verified,
-virus-scanned, and spam-scored before your webhook fires, and the results
-travel with the payload.
+`priority` wins, and the first match stops the search. A `regex` pattern that
+fails to compile is logged and skipped rather than failing the delivery.
+
+### What the webhook actually receives
+
+The payload is **metadata, not content**. It identifies the message and carries
+the verdicts, then points at the stored original:
+
+```json
+{
+  "message_id": "01a0…", "tenant_id": "…", "domain_id": "…",
+  "envelope_from": "sender@example.net",
+  "envelope_to": ["support@example.com"],
+  "raw_eml_key": "…",
+  "spam_score": -0.1, "spam_action": "accept",
+  "llm_category": null, "llm_summary": null,
+  "in_reply_to": null, "references": [],
+  "auto_submitted": null, "list_id": null, "precedence": null,
+  "dsn_ret": null, "dsn_envid": null, "dsn_notify": null, "dsn_orcpt": null,
+  "queued_at": "2026-01-01T00:00:00Z"
+}
+```
+
+There are **no bodies and no attachments in the payload.** Fetch the content
+when you want it:
+
+| You want | Call |
+|---|---|
+| The original message | `GET /v1/messages/{message_id}/raw` |
+| Attachment list | `GET /v1/messages/{message_id}/attachments` |
+| One attachment | `GET /v1/messages/{message_id}/attachments/{id}` |
+| Stored metadata | `GET /v1/messages/{message_id}` |
+
+That split is deliberate: a webhook stays small and fast regardless of a 25 MB
+attachment, and a handler that only needs the spam verdict never moves the
+body at all.
+
+Every message is SPF/DKIM/DMARC/ARC verified, virus-scanned and spam-scored
+*before* the webhook fires, so `spam_score` / `spam_action` are usable as an
+intake gate. `auto_submitted`, `list_id` and `precedence` are the loop guards -
+check them before auto-replying, or two mail systems will talk to each other
+forever.
+
+### Retries
+
+Your endpoint's response decides what happens next:
+
+| Response | Treated as |
+|---|---|
+| 2xx | Delivered |
+| 5xx, 408, 429 | Transient - retried |
+| Any other 4xx | Permanent - not retried |
+| Connection error or timeout | Transient - retried |
+
+Retries are scheduled through the queue rather than held in memory, so they
+survive a restart of the server. Return 2xx once you have durably accepted the
+message and do the work asynchronously; a slow handler earns duplicate
+deliveries.
 
 ---
 
