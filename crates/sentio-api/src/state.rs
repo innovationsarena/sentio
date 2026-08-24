@@ -24,8 +24,14 @@ pub struct AppState {
     pub blob_store: Arc<S3BlobStore>,
     pub config: Arc<SentioConfig>,
     pub rate_limiter: Arc<KeyedRateLimiter>,
+    /// Pre-auth limiter keyed by client IP; guards token brute force and
+    /// unauthenticated endpoints.
+    pub ip_rate_limiter: Arc<KeyedRateLimiter>,
     pub kv: Option<RedisPool>,
 }
+
+/// Requests allowed per client IP per minute before authentication.
+const IP_LIMIT_PER_MINUTE: u32 = 120;
 
 impl AppState {
     pub fn new(
@@ -36,6 +42,8 @@ impl AppState {
     ) -> Self {
         let quota = Quota::per_minute(NonZeroU32::new(600).unwrap());
         let rate_limiter = RateLimiter::dashmap(quota);
+        let ip_quota = Quota::per_minute(NonZeroU32::new(IP_LIMIT_PER_MINUTE).unwrap());
+        let ip_rate_limiter = RateLimiter::dashmap(ip_quota);
 
         Self {
             pool,
@@ -43,6 +51,7 @@ impl AppState {
             blob_store: Arc::new(blob_store),
             config: Arc::new(config),
             rate_limiter: Arc::new(rate_limiter),
+            ip_rate_limiter: Arc::new(ip_rate_limiter),
             kv: None,
         }
     }

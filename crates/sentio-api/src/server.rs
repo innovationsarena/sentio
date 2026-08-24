@@ -26,13 +26,16 @@ pub async fn start(
 
     tracing::info!(%addr, "API server listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            let _ = shutdown_rx.wait_for(|v| *v).await;
-            tracing::info!("API server shutting down");
-        })
-        .await
-        .map_err(|e| SentioError::Internal(format!("API server error: {e}")))?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        let _ = shutdown_rx.wait_for(|v| *v).await;
+        tracing::info!("API server shutting down");
+    })
+    .await
+    .map_err(|e| SentioError::Internal(format!("API server error: {e}")))?;
 
     tracing::info!("API server stopped");
     Ok(())

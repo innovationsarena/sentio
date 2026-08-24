@@ -271,11 +271,7 @@ pub fn router(state: AppState) -> Router {
         .route("/summary", get(errors::error_summary))
         .route("/{id}", get(errors::get_error));
 
-    Router::new()
-        .route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
-        // Custom page + embedded bundle so /docs works without a CDN.
-        .merge(Scalar::with_url("/docs", ApiDoc::openapi()).custom_html(docs::SCALAR_HTML))
-        .route(docs::SCALAR_JS_PATH, get(docs::scalar_js))
+    let authenticated_routes: Router<AppState> = Router::new()
         .nest("/v1/messages", messages_router)
         .nest("/v1/domains", domains_router)
         .nest("/v1/webhooks", webhooks_router)
@@ -291,8 +287,29 @@ pub fn router(state: AppState) -> Router {
         .nest("/v1/oauth", oauth_router)
         .nest("/v1/admin/abuse", abuse_router)
         .nest("/v1/admin/errors", errors_router)
+        // Request order: auth resolves the bearer token once, then the
+        // per-tenant limiter reads the resulting context.
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::tenant_rate_limit_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::auth::auth_middleware,
+        ));
+
+    Router::new()
+        .route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
+        // Custom page + embedded bundle so /docs works without a CDN.
+        .merge(Scalar::with_url("/docs", ApiDoc::openapi()).custom_html(docs::SCALAR_HTML))
+        .route(docs::SCALAR_JS_PATH, get(docs::scalar_js))
+        .merge(authenticated_routes)
         .nest("/health", health_router)
         .nest("/track", tracking_router)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::ip_rate_limit_middleware,
+        ))
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::x_request_id())

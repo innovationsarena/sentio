@@ -82,6 +82,14 @@ pub struct ServerConfig {
     pub xclient_enabled: bool,
     #[serde(default)]
     pub xclient_allowed_ips: Vec<String>,
+    /// Proxy IPs trusted to set X-Forwarded-For on API requests.
+    ///
+    /// Empty (default) means clients are reached directly and the socket
+    /// peer address is used for pre-auth rate limiting. Add your load
+    /// balancer's IP here when the API runs behind an L7 proxy, otherwise
+    /// every request shares the proxy's single rate-limit bucket.
+    #[serde(default)]
+    pub api_trusted_proxies: Vec<String>,
     pub shutdown_drain_secs: u64,
     pub shutdown_force_secs: u64,
     /// Maximum API request body size in megabytes.
@@ -128,6 +136,7 @@ impl Default for ServerConfig {
             proxy_protocol: false,
             xclient_enabled: false,
             xclient_allowed_ips: Vec::new(),
+            api_trusted_proxies: Vec::new(),
             shutdown_drain_secs: 30,
             shutdown_force_secs: 60,
             max_api_body_size_mb: 50,
@@ -1086,6 +1095,9 @@ fn apply_single_override(
         }
         ["SERVER", "XCLIENT_ALLOWED_IPS"] => {
             config.server.xclient_allowed_ips = parse_csv(value);
+        }
+        ["SERVER", "API_TRUSTED_PROXIES"] => {
+            config.server.api_trusted_proxies = parse_csv(value);
         }
         ["SERVER", "SHUTDOWN_DRAIN_SECS"] => {
             config.server.shutdown_drain_secs = parse_env(full_key, value)?;
