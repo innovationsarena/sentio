@@ -120,6 +120,70 @@ print(next(m['ID'] for m in json.load(sys.stdin)['messages'] if m['Subject']==su
     fi
 }
 
+
+test_attachment() {
+    info "attachment: host :$SMTP_PORT --> stored in the object store --> back out"
+    local src="/tmp/sentio-e2e-attach-$STAMP.bin"
+    head -c 20000 /dev/urandom > "$src"
+    local want
+    want="$(sha256sum "$src" | cut -d' ' -f1)"
+
+    local subject="e2e-attach-$STAMP"
+    if ! "$REPO_ROOT/scripts/e2e/smtp-send.py" \
+            --host 127.0.0.1 --port "$SMTP_PORT" \
+            --from "alice@$SEND_DOMAIN" --to "support@$RECV_DOMAIN" \
+            --subject "$subject" --body 'body with an attachment' \
+            --attach "$src" >/dev/null; then
+        fail "SMTP rejected a message with an attachment"; rm -f "$src"; return 1
+    fi
+    pass "message with a 20 kB attachment accepted"
+
+    _find_id() {
+        api GET "/v1/messages?direction=inbound&limit=25" | python3 -c "
+import json,sys
+subj=sys.argv[1]
+m=[x['id'] for x in json.load(sys.stdin)['data'] if x.get('subject')==subj]
+print(m[0] if m else '', end='')
+sys.exit(0 if m else 1)
+" "$subject"
+    }
+    if ! wait_for "the message to be stored" 45 _find_id; then
+        fail "message never appeared"; rm -f "$src"; return 1
+    fi
+    local mid; mid="$(_find_id)"
+
+    # The attachment row proves it was parsed out and scanned; scan_status
+    # comes from ClamAV, so a "clean" here also exercises the AV path.
+    local meta; meta="$(api GET "/v1/messages/$mid/attachments")"
+    local aid size scan
+    aid="$(printf '%s' "$meta"  | jqf "d['data'][0]['id']")"
+    size="$(printf '%s' "$meta" | jqf "d['data'][0]['size']")"
+    scan="$(printf '%s' "$meta" | jqf "d['data'][0]['scan_status']")"
+    if [ -z "$aid" ]; then fail "no attachment recorded on the message"; rm -f "$src"; return 1; fi
+    pass "attachment recorded (size $size, scan $scan)"
+
+    # Round-trip the bytes. Anything that mangles storage or retrieval - an
+    # encoding slip, a truncated upload - shows up as a checksum mismatch.
+    local out="/tmp/sentio-e2e-attach-out-$STAMP.bin"
+    api GET "/v1/messages/$mid/attachments/$aid" --output "$out" >/dev/null
+    local got; got="$(sha256sum "$out" | cut -d' ' -f1)"
+    if [ "$want" = "$got" ]; then
+        pass "attachment round-tripped byte for byte"
+    else
+        fail "attachment differs: sent $want, got $got"
+    fi
+
+    # store_raw_eml keeps the original alongside the parsed parts.
+    local raw="/tmp/sentio-e2e-raw-$STAMP.eml"
+    api GET "/v1/messages/$mid/raw" --output "$raw" >/dev/null
+    if grep -q 'Content-Transfer-Encoding: base64' "$raw"; then
+        pass "raw message archived with the encoded attachment"
+    else
+        fail "raw message missing or not archived"
+    fi
+    rm -f "$src" "$out" "$raw"
+}
+
 main() {
     preflight   || { summary; exit 1; }
     "$REPO_ROOT/scripts/e2e/provision.sh"
@@ -127,6 +191,8 @@ main() {
     test_inbound  || true
     echo
     test_outbound || true
+    echo
+    test_attachment || true
     summary
 }
 

@@ -41,6 +41,13 @@ Two flows are exercised:
 |---|---|
 | Inbound | host SMTP client → `sentio:25` → pipeline → inbound route → `webhook-sink` |
 | Outbound | host HTTP client → `POST /v1/messages/send` → relay → `mailpit` |
+| Attachment | host SMTP client → parsed and virus-scanned → object store → back out over the API |
+
+The attachment flow sends 20 kB of random bytes and compares the SHA-256 of
+what comes back out of `/v1/messages/{id}/attachments/{id}`, so an encoding
+slip or a truncated upload fails rather than passing quietly. It also asserts
+the attachment's `scan_status`, which comes from ClamAV, and that the raw
+message was archived.
 
 The assertions check that mail was *processed*, not merely accepted: the
 inbound message must appear via `GET /v1/messages` and produce a successful

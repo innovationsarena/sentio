@@ -17,6 +17,7 @@ Exits 0 on a delivered message, 1 on any SMTP-level rejection, printing the
 server's reply so failures are diagnosable rather than just "it didn't work".
 """
 import argparse
+import os
 import smtplib
 import sys
 import uuid
@@ -35,6 +36,8 @@ def main() -> int:
     ap.add_argument("--body", default="sentio e2e test body")
     ap.add_argument("--header", action="append", default=[],
                     metavar="NAME:VALUE", help="extra header, repeatable")
+    ap.add_argument("--attach", action="append", default=[], metavar="FILE",
+                    help="attach a file, repeatable")
     ap.add_argument("--auth-user")
     ap.add_argument("--auth-pass")
     ap.add_argument("--starttls", action="store_true")
@@ -54,6 +57,18 @@ def main() -> int:
         name, _, value = h.partition(":")
         msg[name.strip()] = value.strip()
     msg.set_content(args.body)
+
+    for path in args.attach:
+        with open(path, "rb") as fh:
+            data = fh.read()
+        # octet-stream keeps the bytes opaque, so a round-trip test compares
+        # exactly what was sent rather than something a parser re-encoded.
+        msg.add_attachment(
+            data,
+            maintype="application",
+            subtype="octet-stream",
+            filename=os.path.basename(path),
+        )
 
     try:
         with smtplib.SMTP(args.host, args.port, timeout=args.timeout) as s:
