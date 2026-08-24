@@ -7,6 +7,14 @@ reaches 1.0.
 
 ## [Unreleased]
 
+### Fixed
+- Manual install instructions, after running them on a clean host: the
+  PostgreSQL 18 floor and the `uuidv7()` error it produces on older servers,
+  the interactive `createuser --pwprompt` and its undocumented password
+  coupling, a `setcap` aimed at a path that did not exist yet, and a systemd
+  unit that ran as an undefined user against a config path the README never
+  creates.
+
 ## [0.1.3] - 2026-08-24
 
 ### Added
