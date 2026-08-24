@@ -63,6 +63,21 @@ jobs:
           diff -u docs/openapi.json /tmp/openapi.json \
             || { echo "::error::docs/openapi.json is stale - run: cargo run -- openapi > docs/openapi.json"; exit 1; }
 
+  windows:
+    name: windows x86_64
+    # Compile-only for now. The code has a non-unix shutdown path and no
+    # unix-only dependencies, so the open question is whether aws-lc-sys (the C
+    # crypto behind rustls) builds here - it needs NASM. If this stays green,
+    # shipping Windows binaries is a small step from it.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: ilammy/setup-nasm@v1
+      - name: Check
+        run: cargo check --workspace --all-targets
+
   docker:
     name: docker build
     # Builds without pushing. publish.yml owns the registry and only runs for a
