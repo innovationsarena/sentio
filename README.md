@@ -572,19 +572,29 @@ Outbound requires a **verified** sending domain, which proves you control it.
 ```bash
 KEY="sentio_bootstrap_admin_CHANGE_ME"
 API="http://localhost:8080"
+auth=(-H "Authorization: Bearer $KEY" -H 'Content-Type: application/json')
 
-# 1. Register the domain
-curl -X POST "$API/v1/domains" \
-  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"domain_name":"example.com","use_for_sending":true}'
+# 1. Register the domain. Keep the id and the verification token it returns.
+read -r DOMAIN_ID TOKEN < <(curl -s -X POST "$API/v1/domains" "${auth[@]}" \
+  -d '{"domain_name":"example.com","use_for_sending":true}' \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(d["id"], d["verification_token"])')
 
-# 2. Get the DNS records to publish, then publish them at your DNS host
-curl -H "Authorization: Bearer $KEY" "$API/v1/domains/$DOMAIN_ID/dns-records"
+# 2. Create a DKIM key. Do this before step 3: the DNS records only include a
+#    DKIM entry once a key exists.
+curl -X POST "$API/v1/domains/$DOMAIN_ID/dkim-keys" "${auth[@]}" \
+  -d '{"selector":"s1"}'
 
-# 3. Ask Sentio to check them
-curl -X POST -H "Authorization: Bearer $KEY" "$API/v1/domains/$DOMAIN_ID/verify"
+# 3. Get the records to publish, then publish them at your DNS host
+curl "${auth[@]}" "$API/v1/domains/$DOMAIN_ID/dns-records"
 
-# 4. Send
+# 4. Claim the domain. This checks the token, not DNS.
+curl -X POST "$API/v1/domains/$DOMAIN_ID/verify" "${auth[@]}" \
+  -d "{\"token\":\"$TOKEN\"}"
+
+# 5. Check what has actually propagated
+curl -X POST "$API/v1/domains/$DOMAIN_ID/dns-check" "${auth[@]}"
+
+# 6. Send
 curl -X POST "$API/v1/messages/send" \
   -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d '{
@@ -595,6 +605,27 @@ curl -X POST "$API/v1/messages/send" \
     "html": "<p>HTML body</p>"
   }'
 ```
+
+### Verified, and DNS-checked, are different things
+
+`POST /v1/domains/{id}/verify` marks the domain verified by matching the token
+returned at registration. It performs no DNS lookup, and it is what gates
+sending - `status` moves to `verified` and `/v1/messages/send` starts accepting
+the domain.
+
+`POST /v1/domains/{id}/dns-check` is the one that resolves your published
+records and fills in `spf_status`, `dkim_status`, `dmarc_status` and
+`mx_status`, each with an error string when it fails:
+
+```json
+{"spf_status": "failed", "spf_error": "no TXT records on example.com",
+ "dkim_status": "failed", "dkim_error": "s1._domainkey.example.com not found"}
+```
+
+A domain can be `verified` while every DNS check is still failing. That
+combination sends, but the mail will not authenticate - so run the DNS check
+after publishing and read the per-record errors. Sentio also re-runs it
+periodically in the background.
 
 Also available: `/v1/messages/send-batch` (up to 500), `/v1/messages/send-raw`
 (pre-built EML), and `/v1/messages/send-multipart` (file upload). Delivery
@@ -750,8 +781,9 @@ spam folders.
 | `DMARC` | `v=DMARC1; p=quarantine; rua=mailto:…` | Alignment policy and reports |
 
 Sentio generates the SPF, DKIM, and DMARC records for you -
-`GET /v1/domains/{id}/dns-records` - and `POST /v1/domains/{id}/verify` checks
-what has actually propagated.
+`GET /v1/domains/{id}/dns-records`, which includes the DKIM entry once the
+domain has a key - and `POST /v1/domains/{id}/dns-check` resolves them and
+reports which ones are actually visible.
 
 **Two things that catch people out:**
 
