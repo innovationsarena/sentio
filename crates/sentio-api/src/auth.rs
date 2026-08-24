@@ -67,13 +67,24 @@ impl FromRequestParts<AppState> for AuthContext {
                 hex::encode(hasher.finalize())
             };
 
-            // Try API key first
+            // Try API key first. A miss is signalled by SentioError::Auth;
+            // any other error is an infrastructure failure and must not be
+            // reported to the caller as a bad token.
             let api_key_repo = PgApiKeyRepository::new(pool.clone());
-            if let Ok(record) = api_key_repo.verify(&key_hash).await {
-                return Ok(AuthContext {
-                    tenant_id: record.tenant_id,
-                    scopes: record.scopes,
-                });
+            match api_key_repo.verify(&key_hash).await {
+                Ok(record) => {
+                    return Ok(AuthContext {
+                        tenant_id: record.tenant_id,
+                        scopes: record.scopes,
+                    });
+                }
+                Err(sentio_core::error::SentioError::Auth(_)) => {}
+                Err(e) => {
+                    tracing::error!("api key lookup failed: {e}");
+                    return Err(ApiError::Internal(
+                        "authentication backend unavailable".into(),
+                    ));
+                }
             }
 
             // Fall back to OAuth bearer token
@@ -91,7 +102,21 @@ impl FromRequestParts<AppState> for AuthContext {
                         scopes: record.scopes,
                     })
                 }
-                Err(_) => Err(ApiError::Auth("invalid or expired token".into())),
+                // A token that matches no row is a client error, not an
+                // outage. The two repositories disagree on how they say
+                // "no such row": PgApiKeyRepository::verify returns Auth,
+                // PgOAuthTokenRepository::get_by_hash returns NotFound.
+                // Both mean the same thing here.
+                Err(
+                    sentio_core::error::SentioError::Auth(_)
+                    | sentio_core::error::SentioError::NotFound { .. },
+                ) => Err(ApiError::Auth("invalid or expired token".into())),
+                Err(e) => {
+                    tracing::error!("oauth token lookup failed: {e}");
+                    Err(ApiError::Internal(
+                        "authentication backend unavailable".into(),
+                    ))
+                }
             }
         }
     }
@@ -117,4 +142,41 @@ pub async fn auth_middleware(
     parts.extensions.insert(ctx);
     let req = axum::http::Request::from_parts(parts, body);
     Ok(next.run(req).await)
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Bootstrap credential check
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Warn loudly if the well-known bootstrap admin API key is still active.
+///
+/// `migrations/002_bootstrap.sql` seeds an admin tenant with a publicly-known
+/// key (`sentio_bootstrap_admin_CHANGE_ME`) so a fresh install is usable. The
+/// README instructs operators to rotate it; this check makes a forgotten
+/// rotation impossible to miss at startup.
+pub async fn warn_if_bootstrap_key_active(pool: &sqlx::PgPool) {
+    const BOOTSTRAP_KEY: &str = "sentio_bootstrap_admin_CHANGE_ME";
+
+    let key_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(BOOTSTRAP_KEY.as_bytes());
+        hex::encode(hasher.finalize())
+    };
+
+    let api_key_repo = PgApiKeyRepository::new(pool.clone());
+    match api_key_repo.verify(&key_hash).await {
+        Ok(record) => {
+            tracing::warn!(
+                key_prefix = %record.key_prefix,
+                "the bootstrap admin API key shipped in migrations/002_bootstrap.sql \
+                 is still active and publicly known - rotate it now via \
+                 POST /v1/tenants/{}/api-keys, then delete the bootstrap key",
+                record.tenant_id
+            );
+        }
+        Err(sentio_core::error::SentioError::Auth(_)) => {}
+        Err(e) => {
+            tracing::debug!(error = %e, "could not check bootstrap key status");
+        }
+    }
 }
