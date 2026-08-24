@@ -36,6 +36,12 @@ impl FromRequestParts<AppState> for AuthContext {
         parts: &mut Parts,
         state: &AppState,
     ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        // When the auth middleware has already resolved the context, reuse
+        // it instead of repeating the database lookup.
+        // When the auth middleware has already resolved the context, reuse
+        // it instead of repeating the database lookup.
+        let cached = parts.extensions.get::<AuthContext>().cloned();
+
         let pool = state.pool.clone();
         let auth_header = parts
             .headers
@@ -44,6 +50,9 @@ impl FromRequestParts<AppState> for AuthContext {
             .map(|s| s.to_string());
 
         async move {
+            if let Some(ctx) = cached {
+                return Ok(ctx);
+            }
             let auth_header =
                 auth_header.ok_or_else(|| ApiError::Auth("missing authorization header".into()))?;
 
@@ -86,4 +95,26 @@ impl FromRequestParts<AppState> for AuthContext {
             }
         }
     }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Auth middleware
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Resolve the bearer token once per request and publish the resulting
+/// `AuthContext` as a request extension, so downstream middleware (per-tenant
+/// rate limiting) and handlers share a single database lookup.
+///
+/// Applied only to authenticated route groups - public endpoints such as
+/// `/health`, `/docs`, and `/track` are mounted outside this layer.
+pub async fn auth_middleware(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, ApiError> {
+    let (mut parts, body) = req.into_parts();
+    let ctx = AuthContext::from_request_parts(&mut parts, &state).await?;
+    parts.extensions.insert(ctx);
+    let req = axum::http::Request::from_parts(parts, body);
+    Ok(next.run(req).await)
 }

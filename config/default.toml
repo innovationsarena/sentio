@@ -13,6 +13,10 @@ max_connections = 10000
 proxy_protocol = false
 xclient_enabled = false
 xclient_allowed_ips = []
+# IPs allowed to set X-Forwarded-For on API requests (pre-auth rate limiting
+# keys on the forwarded origin for these peers). Leave empty when the API is
+# reached directly; add your load balancer's IP when running behind an L7 proxy.
+api_trusted_proxies = []
 shutdown_drain_secs = 30
 shutdown_force_secs = 60
 max_api_body_size_mb = 50
