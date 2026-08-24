@@ -19,8 +19,10 @@ COPY . .
 # Use the committed .sqlx/ offline cache so the build doesn't need a live DB.
 ENV SQLX_OFFLINE=true
 
-RUN cargo build --release --bin sentio-smtp \
-    && strip target/release/sentio-smtp
+# sentio-mcp rides along so the release job can lift both binaries out of the
+# image instead of running a second set of release builds.
+RUN cargo build --release -p sentio-smtp -p sentio-mcp --bins \
+    && strip target/release/sentio-smtp target/release/sentio-mcp
 
 # ── Runtime ──────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
@@ -44,6 +46,7 @@ RUN apt-get update \
     && chown -R sentio:sentio /etc/sentio /var/lib/sentio
 
 COPY --from=builder /build/target/release/sentio-smtp /usr/local/bin/sentio-smtp
+COPY --from=builder /build/target/release/sentio-mcp  /usr/local/bin/sentio-mcp
 COPY --from=builder /build/migrations /usr/share/sentio/migrations
 COPY config/oss.toml /etc/sentio/oss.toml
 # Licence obligations travel with the binary, not just the repo.

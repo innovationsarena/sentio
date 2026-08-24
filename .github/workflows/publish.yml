@@ -90,17 +90,23 @@ jobs:
       - name: Build
         env:
           SQLX_OFFLINE: "true"
-        run: cargo build --release --bin sentio-smtp
+        run: cargo build --release -p sentio-smtp -p sentio-mcp --bins
 
       - name: Package
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
-          New-Item -ItemType Directory -Path stage | Out-Null
-          Copy-Item target/release/sentio-smtp.exe stage/
-          Copy-Item LICENSE, LICENSE-MIT, LICENSE-APACHE, THIRD-PARTY-NOTICES.md, README.md stage/
+          $docs = @("LICENSE", "LICENSE-MIT", "LICENSE-APACHE", "THIRD-PARTY-NOTICES.md", "README.md")
           New-Item -ItemType Directory -Path dist | Out-Null
-          Compress-Archive -Path stage/* -DestinationPath "dist/sentio-smtp-$version-x86_64-pc-windows-msvc.zip"
+          # Two archives rather than one: an MCP client only needs sentio-mcp,
+          # and a mail server operator only needs sentio-smtp.
+          foreach ($bin in @("sentio-smtp", "sentio-mcp")) {
+            $stage = "stage-$bin"
+            New-Item -ItemType Directory -Path $stage | Out-Null
+            Copy-Item "target/release/$bin.exe" $stage/
+            Copy-Item $docs $stage/
+            Compress-Archive -Path "$stage/*" -DestinationPath "dist/$bin-$version-x86_64-pc-windows-msvc.zip"
+          }
           Get-ChildItem dist
 
       - uses: actions/upload-artifact@v4
@@ -187,12 +193,14 @@ jobs:
           for pair in "linux/amd64:x86_64-unknown-linux-gnu" "linux/arm64:aarch64-unknown-linux-gnu"; do
             platform="${pair%%:*}"; triple="${pair##*:}"
             cid=$(docker create --platform "$platform" "$IMG")
-            docker cp "$cid:/usr/local/bin/sentio-smtp" "sentio-smtp"
+            for bin in sentio-smtp sentio-mcp; do
+              docker cp "$cid:/usr/local/bin/$bin" "$bin"
+              tar -czf "dist/${bin}-${VERSION}-${triple}.tar.gz" \
+                  "$bin" LICENSE LICENSE-MIT LICENSE-APACHE \
+                  THIRD-PARTY-NOTICES.md README.md
+              rm "$bin"
+            done
             docker rm -v "$cid" >/dev/null
-            tar -czf "dist/sentio-smtp-${VERSION}-${triple}.tar.gz" \
-                sentio-smtp LICENSE LICENSE-MIT LICENSE-APACHE \
-                THIRD-PARTY-NOTICES.md README.md
-            rm sentio-smtp
           done
           ls -la dist
 
@@ -241,6 +249,12 @@ jobs:
             echo "| Linux x86_64 | \`sentio-smtp-${VERSION}-x86_64-unknown-linux-gnu.tar.gz\` |"
             echo "| Linux aarch64 | \`sentio-smtp-${VERSION}-aarch64-unknown-linux-gnu.tar.gz\` |"
             echo "| Windows x86_64 | \`sentio-smtp-${VERSION}-x86_64-pc-windows-msvc.zip\` |"
+            echo
+            echo "\`sentio-mcp\`, the MCP server that gives agents email as tools,"
+            echo "ships as its own archive for the same three platforms:"
+            echo "\`sentio-mcp-${VERSION}-<platform>\`. It needs no database of its"
+            echo "own - point it at a running Sentio with SENTIO_BASE_URL and"
+            echo "SENTIO_API_KEY."
             echo
             echo "The Linux builds are dynamically linked and need glibc 2.34 or"
             echo "newer - Debian 12+, Ubuntu 22.04+, RHEL 9+. Binding port 25 as a"

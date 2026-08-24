@@ -458,14 +458,27 @@ tenant, and inherits all of Sentio's existing auth and rate limiting.
 | `list_mailboxes` | List mailboxes on a domain |
 | `create_mailbox` | Create a mailbox on an owned domain |
 
-Run it against your server:
+Every release ships `sentio-mcp` as its own archive for Linux x86_64, Linux
+aarch64 and Windows x86_64, so an MCP client host needs no Rust toolchain:
+
+```bash
+VERSION=0.1.4   # or whatever the latest release tag is
+curl -LO "https://github.com/truespar/sentio/releases/download/v${VERSION}/sentio-mcp-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+tar -xzf sentio-mcp-*.tar.gz
+```
+
+Or build it from a checkout:
 
 ```bash
 cargo build --release -p sentio-mcp
+```
 
+Either way, point it at a running Sentio. It keeps no state of its own:
+
+```bash
 SENTIO_BASE_URL="http://localhost:8080" \
 SENTIO_API_KEY="your-api-key" \
-./target/release/sentio-mcp
+./sentio-mcp
 ```
 
 Wire it into an MCP client config (example for Claude Desktop / opencode):

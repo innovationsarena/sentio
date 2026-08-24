@@ -8,7 +8,7 @@ Generated from the resolved dependency graph with
 [cargo-about](https://github.com/EmbarkStudios/cargo-about); regenerate with:
 
 ```bash
-cargo about generate --fail about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md
+cargo about generate --fail --workspace about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md
 ```
 
 Sentio itself is `MIT OR Apache-2.0`; see [LICENSE](LICENSE).
@@ -10325,7 +10325,7 @@ limitations under the License.
 
 ## Apache License 2.0
 
-Used by `allocator-api2 0.2.21`, `async-nats 0.50.0`, `async-trait 0.1.92`, `aws-config 1.11.0`, `aws-credential-types 1.3.0`, `aws-lc-sys 0.44.0`, `aws-runtime 1.9.1`, `aws-sigv4 1.5.1`, `aws-smithy-async 1.3.0`, `aws-smithy-checksums 0.65.0`, `aws-smithy-eventstream 0.61.2`, `aws-smithy-http-client 1.4.0`, `aws-smithy-http 0.64.0`, `aws-smithy-json 0.63.0`, `aws-smithy-observability 0.3.0`, `aws-smithy-query 0.62.0`, `aws-smithy-runtime-api-macros 1.1.0`, `aws-smithy-runtime-api 1.15.0`, `aws-smithy-runtime 1.14.0`, `aws-smithy-schema 0.2.0`, `aws-smithy-types 1.6.2`, `aws-smithy-xml 0.62.0`, `aws-types 1.5.0`, `itoa 1.0.18`, `libc 0.2.189`, `metrics-exporter-prometheus 0.18.3`, `miniz_oxide 0.8.9`, `num-conv 0.2.2`, `pin-project-internal 1.1.13`, `pin-project-lite 0.2.17`, `pin-project 1.1.13`, `portable-atomic 1.15.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rand 0.10.2`, `rand 0.8.7`, `rand 0.9.5`, `rand_chacha 0.9.0`, `rand_xoshiro 0.7.0`, `rustversion 1.0.23`, `ryu 1.0.23`, `serde 1.0.229`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_json 1.0.151`, `serde_nanos 0.1.4`, `serde_path_to_error 0.1.20`, `serde_repr 0.1.21`, `serde_urlencoded 0.7.1`, `sqlx-core 0.9.0`, `sqlx-macros-core 0.9.0`, `sqlx-macros 0.9.0`, `sqlx-postgres 0.9.0`, `syn 2.0.119`, `syn 3.0.3`, `sync_wrapper 1.0.2`, `tagptr 0.2.0`, `thiserror-impl 2.0.20`, `thiserror 2.0.20`, `time-core 0.1.9`, `time 0.3.55`, `typed-path 0.12.3`, `unicode-ident 1.0.24`, `utf8parse 0.2.2`, `whoami 2.1.3`
+Used by `allocator-api2 0.2.21`, `async-nats 0.50.0`, `async-trait 0.1.92`, `aws-config 1.11.0`, `aws-credential-types 1.3.0`, `aws-lc-sys 0.44.0`, `aws-runtime 1.9.1`, `aws-sigv4 1.5.1`, `aws-smithy-async 1.3.0`, `aws-smithy-checksums 0.65.0`, `aws-smithy-eventstream 0.61.2`, `aws-smithy-http-client 1.4.0`, `aws-smithy-http 0.64.0`, `aws-smithy-json 0.63.0`, `aws-smithy-observability 0.3.0`, `aws-smithy-query 0.62.0`, `aws-smithy-runtime-api-macros 1.1.0`, `aws-smithy-runtime-api 1.15.0`, `aws-smithy-runtime 1.14.0`, `aws-smithy-schema 0.2.0`, `aws-smithy-types 1.6.2`, `aws-smithy-xml 0.62.0`, `aws-types 1.5.0`, `dyn-clone 1.0.20`, `ident_case 1.0.1`, `itoa 1.0.18`, `libc 0.2.189`, `metrics-exporter-prometheus 0.18.3`, `miniz_oxide 0.8.9`, `num-conv 0.2.2`, `pastey 0.2.3`, `pin-project-internal 1.1.13`, `pin-project-lite 0.2.17`, `pin-project 1.1.13`, `portable-atomic 1.15.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rand 0.10.2`, `rand 0.8.7`, `rand 0.9.5`, `rand_chacha 0.9.0`, `rand_xoshiro 0.7.0`, `ref-cast-impl 1.0.27`, `ref-cast 1.0.27`, `rmcp-macros 3.1.4`, `rmcp 3.1.4`, `rustversion 1.0.23`, `ryu 1.0.23`, `serde 1.0.229`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_derive_internals 0.30.0`, `serde_json 1.0.151`, `serde_nanos 0.1.4`, `serde_path_to_error 0.1.20`, `serde_repr 0.1.21`, `serde_urlencoded 0.7.1`, `sqlx-core 0.9.0`, `sqlx-macros-core 0.9.0`, `sqlx-macros 0.9.0`, `sqlx-postgres 0.9.0`, `syn 2.0.119`, `syn 3.0.3`, `sync_wrapper 1.0.2`, `tagptr 0.2.0`, `thiserror-impl 2.0.20`, `thiserror 2.0.20`, `time-core 0.1.9`, `time 0.3.55`, `typed-path 0.12.3`, `unicode-ident 1.0.24`, `utf8parse 0.2.2`, `whoami 2.1.3`
 
 ```
 Apache License
@@ -11732,6 +11732,68 @@ THE SOFTWARE.
 
 ## MIT License
 
+Used by `schemars 1.2.2`
+
+```
+#![allow(clippy::all)]
+use crate::_alloc_prelude::*;
+// Copied from regex_syntax crate to avoid pulling in the whole crate just for a utility function
+// https://github.com/rust-lang/regex/blob/431c4e4867e1eb33eb39b23ed47c9934b2672f8f/regex-syntax/src/lib.rs
+//
+// Copyright (c) 2014 The Rust Project Developers
+//
+// Permission is hereby granted, free of charge, to any
+// person obtaining a copy of this software and associated
+// documentation files (the &quot;Software&quot;), to deal in the
+// Software without restriction, including without
+// limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software
+// is furnished to do so, subject to the following
+// conditions:
+//
+// The above copyright notice and this permission notice
+// shall be included in all copies or substantial portions
+// of the Software.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+// ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+// TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+// PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+// SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+// IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
+
+pub fn escape(text: &amp;str) -&gt; String {
+    let mut quoted &#x3D; String::new();
+    escape_into(text, &amp;mut quoted);
+    quoted
+}
+
+fn escape_into(text: &amp;str, buf: &amp;mut String) {
+    buf.reserve(text.len());
+    for c in text.chars() {
+        if is_meta_character(c) {
+            buf.push(&#x27;\\&#x27;);
+        }
+        buf.push(c);
+    }
+}
+
+fn is_meta_character(c: char) -&gt; bool {
+    match c {
+        &#x27;\\&#x27; | &#x27;.&#x27; | &#x27;+&#x27; | &#x27;*&#x27; | &#x27;?&#x27; | &#x27;(&#x27; | &#x27;)&#x27; | &#x27;|&#x27; | &#x27;[&#x27; | &#x27;]&#x27; | &#x27;{&#x27; | &#x27;}&#x27; | &#x27;^&#x27; | &#x27;$&#x27;
+        | &#x27;#&#x27; | &#x27;&amp;&#x27; | &#x27;-&#x27; | &#x27;~&#x27; &#x3D;&gt; true,
+        _ &#x3D;&gt; false,
+    }
+}
+
+```
+
+## MIT License
+
 Used by `quanta 0.12.6`
 
 ```
@@ -12401,12 +12463,70 @@ SOFTWARE.
 
 ## MIT License
 
+Used by `darling 0.24.1`, `darling_core 0.24.1`, `darling_macro 0.24.1`
+
+```
+MIT License
+
+Copyright (c) 2017 Ted Driggs
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+## MIT License
+
 Used by `dashmap 6.2.1`
 
 ```
 MIT License
 
 Copyright (c) 2019 Acrimon
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+## MIT License
+
+Used by `schemars 1.2.2`, `schemars_derive 1.2.2`
+
+```
+MIT License
+
+Copyright (c) 2019 Graham Esau
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the &quot;Software&quot;), to deal
