@@ -7,6 +7,12 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-24
+
+First release with published artifacts: a multi-arch container image and
+prebuilt binaries. `0.1.0` exists as an image tag only - it was cut while the
+release pipeline was still being wired up.
+
 ### Added
 - Docker Compose quickstart covering the full stack, plus a from-source install
   path with build dependencies and required services.

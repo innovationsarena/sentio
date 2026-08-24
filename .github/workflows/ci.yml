@@ -48,9 +48,9 @@ jobs:
 
   docker:
     name: docker build
-    # Pushes to main and tags are built and published by publish.yml; this job
-    # exists so a pull request still proves the Dockerfile works.
-    if: github.event_name == 'pull_request'
+    # Builds without pushing. publish.yml owns the registry and only runs for a
+    # v* tag, so this is what keeps main honest about the Dockerfile in between
+    # releases.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -1,13 +1,18 @@
 name: Publish image
 
-# Publishes ghcr.io/truespar/sentio on every push to main, and semver tags
-# for releases. Each architecture is built on a native runner and the two
-# are merged into one multi-arch manifest afterwards: building arm64 under
-# QEMU emulation turns a Rust release build into an hour-plus job.
+# Publishes ghcr.io/truespar/sentio, and the GitHub Release, for a v* tag.
+#
+# Deliberately NOT on pushes to main. `latest` has to mean "latest release",
+# otherwise `docker compose up -d` hands a first-time user whatever landed on
+# main an hour ago. Pushes to main are validated by ci.yml, which builds the
+# image without pushing it.
+#
+# Each architecture is built on a native runner and merged into one manifest
+# afterwards: cross-building arm64 under QEMU turns a Rust release build into
+# an hour-plus job.
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -99,11 +104,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+          # latest=auto adds :latest for a release tag but not a prerelease,
+          # so v1.0.0 moves it and v1.1.0-rc1 does not.
+          flavor: |
+            latest=auto
 
       - name: Create multi-arch manifest
         working-directory: /tmp/digests
@@ -114,3 +122,89 @@ jobs:
 
       - name: Show what was published
         run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+
+  release:
+    name: github release
+    needs: merge
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create the release
+      packages: read      # pull the image we just published
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The binaries are lifted out of the images built above rather than
+      # compiled again. That avoids a second pair of ten-minute release builds,
+      # and it guarantees the tarball contains the same bytes the container
+      # runs. `docker create` never executes anything, so a foreign-arch image
+      # can be unpacked on this runner without emulation.
+      - name: Extract binaries from the published images
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          IMG="${REGISTRY}/${IMAGE}:${VERSION}"
+          mkdir -p dist
+          for pair in "linux/amd64:x86_64-unknown-linux-gnu" "linux/arm64:aarch64-unknown-linux-gnu"; do
+            platform="${pair%%:*}"; triple="${pair##*:}"
+            cid=$(docker create --platform "$platform" "$IMG")
+            docker cp "$cid:/usr/local/bin/sentio-smtp" "sentio-smtp"
+            docker rm -v "$cid" >/dev/null
+            tar -czf "dist/sentio-smtp-${VERSION}-${triple}.tar.gz" \
+                sentio-smtp LICENSE README.md
+            rm sentio-smtp
+          done
+          ( cd dist && sha256sum *.tar.gz > SHA256SUMS )
+          ls -la dist
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          {
+            echo "## Run it"
+            echo
+            echo '```bash'
+            echo "docker run --rm ${REGISTRY}/${IMAGE}:${VERSION} --help"
+            echo '```'
+            echo
+            echo "Or the full stack, which brings up PostgreSQL, Redis, NATS,"
+            echo "MinIO, ClamAV and rspamd alongside it:"
+            echo
+            echo '```bash'
+            echo "git clone https://github.com/${IMAGE}.git && cd sentio"
+            echo "git checkout ${GITHUB_REF_NAME}"
+            echo "docker compose up -d"
+            echo '```'
+            echo
+            echo "**Image** \`${REGISTRY}/${IMAGE}:${VERSION}\` - linux/amd64, linux/arm64"
+            echo
+            echo "## Binaries"
+            echo
+            echo "Dynamically linked, requiring glibc 2.34 or newer - Debian 12+,"
+            echo "Ubuntu 22.04+, RHEL 9+. Grant the port-binding capability"
+            echo "rather than running as root:"
+            echo
+            echo '```bash'
+            echo "sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/sentio-smtp"
+            echo '```'
+            echo
+            echo "Verify with \`sha256sum -c SHA256SUMS\`."
+            echo
+            echo "## Changes"
+            echo
+            echo "See [CHANGELOG.md](https://github.com/${IMAGE}/blob/${GITHUB_REF_NAME}/CHANGELOG.md)."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag \
+            dist/*
