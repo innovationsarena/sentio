@@ -45,16 +45,32 @@ jobs:
         with:
           command: check
 
+      # Pinned: an unpinned generator makes the comparison below
+      # irreproducible, since a new cargo-about can reformat the output.
+      - name: Install cargo-about
+        run: cargo install --locked --features cli --version 0.9.2 cargo-about
+
       # Attribution: MIT and BSD require their notices to ship with the binary,
       # so a stale file is a compliance gap, not a cosmetic one.
       - name: Third-party notices are up to date
         run: |
-          cargo install --locked --features cli cargo-about
           # tr: some licence texts carry CRLF, which .gitattributes strips
           # on commit. Without this the diff fails on line endings alone.
           cargo about generate --fail about.hbs | tr -d '\r' > /tmp/notices.md
-          diff -u THIRD-PARTY-NOTICES.md /tmp/notices.md \
-            || { echo "::error::THIRD-PARTY-NOTICES.md is stale - run: cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md"; exit 1; }
+          if ! diff -u THIRD-PARTY-NOTICES.md /tmp/notices.md > /tmp/notices.diff; then
+            echo "::error::THIRD-PARTY-NOTICES.md is stale - regenerate with: cargo about generate --fail about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md"
+            echo "--- first 60 lines of the difference ---"
+            head -60 /tmp/notices.diff
+            exit 1
+          fi
+
+      - name: Upload the generated notices on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notices-generated
+          path: /tmp/notices.md
+          if-no-files-found: ignore
 
       # The committed spec must match the code, or generated clients drift.
       - name: OpenAPI spec is up to date
