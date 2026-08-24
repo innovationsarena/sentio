@@ -8,7 +8,7 @@ Generated from the resolved dependency graph with
 [cargo-about](https://github.com/EmbarkStudios/cargo-about); regenerate with:
 
 ```bash
-cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md
+cargo about generate --fail about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md
 ```
 
 Sentio itself is `MIT OR Apache-2.0`; see [LICENSE](LICENSE).

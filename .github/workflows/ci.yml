@@ -50,7 +50,9 @@ jobs:
       - name: Third-party notices are up to date
         run: |
           cargo install --locked --features cli cargo-about
-          cargo about generate --fail about.hbs > /tmp/notices.md
+          # tr: some licence texts carry CRLF, which .gitattributes strips
+          # on commit. Without this the diff fails on line endings alone.
+          cargo about generate --fail about.hbs | tr -d '\r' > /tmp/notices.md
           diff -u THIRD-PARTY-NOTICES.md /tmp/notices.md \
             || { echo "::error::THIRD-PARTY-NOTICES.md is stale - run: cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md"; exit 1; }
 
