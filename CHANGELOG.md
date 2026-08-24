@@ -7,12 +7,37 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-24
+
+### Added
+- `sentio-mcp`, an MCP server that exposes the REST API as agent-callable
+  tools, so an MCP client gets email without any integration code. Ships as
+  its own archive for Linux x86_64, Linux aarch64 and Windows x86_64, and is
+  included in the container image. Thanks to @mrorigo.
+- Unauthenticated API requests are rate limited by client IP, so a request
+  without a valid key is bounded before it reaches the database. Thanks to
+  @mrorigo.
+
 ### Changed
 - `/docs` no longer loads the Scalar front-end from a CDN. The bundle ships
   embedded in the binary (gzipped, ~1 MiB) and is served by Sentio itself, so
-  the API reference renders on hosts without outbound internet access. The
+  the API reference renders on hosts with no outbound internet access. The
   provenance of the vendored bundle is documented in
   `crates/sentio-api/assets/README.md`.
+- Third-party notices are generated across the workspace. Without that they
+  cover only the root package, and the dependencies of the newly shipped
+  `sentio-mcp` would go unattributed.
+
+### Fixed
+- An authentication backend failure was reported to the caller as an invalid
+  token, hiding a database outage behind a 401. Thanks to @mrorigo. A missing
+  OAuth token is still a 401 rather than a 500, since the two repositories
+  report "no such row" differently.
+- The MCP tools interpolated caller-supplied ids straight into the request
+  path, so an id of `../../v1/domains` reached routes the tool set does not
+  expose. Ids are parsed as UUIDs before use.
+- The bootstrap admin API key from `002_bootstrap.sql` now logs a warning at
+  startup while it is still active. Thanks to @mrorigo.
 
 ## [0.1.4] - 2026-08-24
 
