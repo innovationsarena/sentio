@@ -102,9 +102,15 @@ impl FromRequestParts<AppState> for AuthContext {
                         scopes: record.scopes,
                     })
                 }
-                Err(sentio_core::error::SentioError::Auth(_)) => {
-                    Err(ApiError::Auth("invalid or expired token".into()))
-                }
+                // A token that matches no row is a client error, not an
+                // outage. The two repositories disagree on how they say
+                // "no such row": PgApiKeyRepository::verify returns Auth,
+                // PgOAuthTokenRepository::get_by_hash returns NotFound.
+                // Both mean the same thing here.
+                Err(
+                    sentio_core::error::SentioError::Auth(_)
+                    | sentio_core::error::SentioError::NotFound { .. },
+                ) => Err(ApiError::Auth("invalid or expired token".into())),
                 Err(e) => {
                     tracing::error!("oauth token lookup failed: {e}");
                     Err(ApiError::Internal(
@@ -136,6 +142,7 @@ pub async fn auth_middleware(
     parts.extensions.insert(ctx);
     let req = axum::http::Request::from_parts(parts, body);
     Ok(next.run(req).await)
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Bootstrap credential check
