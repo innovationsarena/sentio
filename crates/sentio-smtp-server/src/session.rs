@@ -1015,8 +1015,13 @@ where
         loop {
             // Check if the terminator is in the buffer
             if let Some(pos) = finder.find(&self.read_buf) {
-                // Append everything before the terminator
-                body.extend_from_slice(&self.read_buf[..pos]);
+                // The terminator is "\r\n.\r\n". Its leading CRLF ends the final
+                // body line and belongs to the message (RFC 5321 4.1.1.4);
+                // only the ".\r\n" is the end-of-data indicator. Dropping it
+                // silently breaks anything anchored to the last line - rspamd's
+                // GTUBE rule stops matching, and simple DKIM body
+                // canonicalisation over the final line no longer verifies.
+                body.extend_from_slice(&self.read_buf[..pos + 2]);
                 // Consume the data + terminator from the buffer
                 let _ = self.read_buf.split_to(pos + terminator.len());
                 break;
@@ -1182,6 +1187,46 @@ mod tests {
             session.run().await.unwrap_or(SessionOutcome::Closed)
         });
         (handle, client)
+    }
+
+    /// Like `create_test_session`, but captures the message the pipeline is
+    /// handed so a test can assert on the exact bytes.
+    type CapturedMessages = std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>;
+
+    fn create_capturing_session() -> (
+        tokio::task::JoinHandle<SessionOutcome>,
+        DuplexStream,
+        CapturedMessages,
+    ) {
+        let (server, client) = tokio::io::duplex(8192);
+        let config = test_config();
+        let captured: CapturedMessages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&captured);
+        let mut deps = SessionDeps::noop();
+        deps.message_processor = Some(std::sync::Arc::new(move |msg: InboundMessage| {
+            sink.lock()
+                .expect("capture mutex")
+                .push(msg.raw_data.clone());
+            Box::pin(async move {
+                Ok(crate::pipeline::ProcessingOutcome {
+                    queue_id: "TESTQUEUEID".to_string(),
+                    message_id: sentio_core::message::MessageId::new(),
+                })
+            })
+        }));
+        let handle = tokio::spawn(async move {
+            let mut session = Session::new(
+                server,
+                config,
+                localhost(),
+                ListenerMode::Smtp,
+                false,
+                deps,
+                None,
+            );
+            session.run().await.unwrap_or(SessionOutcome::Closed)
+        });
+        (handle, client, captured)
     }
 
     async fn read_response(client: &mut DuplexStream) -> String {
@@ -2225,6 +2270,32 @@ mod tests {
         assert!(
             !resp.contains("XCLIENT"),
             "XCLIENT should NOT be advertised when disabled: {resp}"
+        );
+    }
+
+    /// The CRLF before the "." terminator ends the last body line and is part
+    /// of the message. Dropping it silently defeats anything anchored to the
+    /// final line: rspamd's GTUBE rule stops firing, which is exactly how this
+    /// was found.
+    #[tokio::test]
+    async fn data_keeps_the_crlf_that_ends_the_last_body_line() {
+        let (_handle, mut client, captured) = create_capturing_session();
+        let _ = read_response(&mut client).await;
+
+        send_and_recv(&mut client, "EHLO test.local\r\n").await;
+        send_and_recv(&mut client, "MAIL FROM:<a@b.com>\r\n").await;
+        send_and_recv(&mut client, "RCPT TO:<b@c.com>\r\n").await;
+        send_and_recv(&mut client, "DATA\r\n").await;
+        let resp = send_and_recv(&mut client, "Subject: t\r\n\r\nLAST-LINE-MARKER\r\n.\r\n").await;
+        assert!(resp.starts_with("250"), "accepted: {resp}");
+
+        let msgs = captured.lock().expect("capture mutex");
+        let raw = msgs.first().expect("a message was captured");
+        let text = String::from_utf8_lossy(raw);
+        assert!(
+            text.ends_with("LAST-LINE-MARKER\r\n"),
+            "final CRLF was dropped; message ended with {:?}",
+            &text[text.len().saturating_sub(24)..]
         );
     }
 }

@@ -8,6 +8,10 @@ reaches 1.0.
 ## [Unreleased]
 
 ### Fixed
+- Inbound SMTP dropped the CRLF that ends the last line of a message body,
+  keeping only the bytes before the `\r\n.\r\n` terminator. Anything anchored
+  to the final line then failed to match: rspamd scored GTUBE at -0.1 instead
+  of 15, so spam scoring was quietly degraded for every message.
 - Manual install instructions, after running them on a clean host: the
   PostgreSQL 18 floor and the `uuidv7()` error it produces on older servers,
   the interactive `createuser --pwprompt` and its undocumented password
