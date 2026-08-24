@@ -1,7 +1,7 @@
 # cargo-about: which licences may appear in a distributed build, and where to
 # find their texts. This is the attribution side; deny.toml is the policy side.
 #
-#   cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md
+#   cargo about generate --fail --workspace about.hbs > THIRD-PARTY-NOTICES.md
 #
 # `targets` is deliberately narrow. Without it the crawl includes crates that
 # only build for other platforms - r-efi is a UEFI-only dependency, and pulling

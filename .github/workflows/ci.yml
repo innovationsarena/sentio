@@ -56,9 +56,11 @@ jobs:
         run: |
           # tr: some licence texts carry CRLF, which .gitattributes strips
           # on commit. Without this the diff fails on line endings alone.
-          cargo about generate --fail about.hbs | tr -d '\r' > /tmp/notices.md
+          # --workspace: releases ship sentio-mcp as well as sentio-smtp, and
+          # without it the crawl covers only the root package's dependencies.
+          cargo about generate --fail --workspace about.hbs | tr -d '\r' > /tmp/notices.md
           if ! diff -u THIRD-PARTY-NOTICES.md /tmp/notices.md > /tmp/notices.diff; then
-            echo "::error::THIRD-PARTY-NOTICES.md is stale - regenerate with: cargo about generate --fail about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md"
+            echo "::error::THIRD-PARTY-NOTICES.md is stale - regenerate with: cargo about generate --fail --workspace about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md"
             echo "--- first 60 lines of the difference ---"
             head -60 /tmp/notices.diff
             exit 1

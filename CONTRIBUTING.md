@@ -110,7 +110,7 @@ Two separate things, both enforced in CI:
   dependencies change:
 
 ```bash
-cargo about generate --fail about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md
+cargo about generate --fail --workspace about.hbs | tr -d '\r' > THIRD-PARTY-NOTICES.md
 ```
 
 Sentio itself is dual-licensed `MIT OR Apache-2.0`; contributions are accepted
