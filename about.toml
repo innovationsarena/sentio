@@ -29,5 +29,10 @@ targets = [
     "x86_64-unknown-linux-gnu",
     "aarch64-unknown-linux-gnu",
 ]
+# Sentio's own crates are first-party; they have no business in a
+# third-party notices file, and leaving them in means every version bump
+# silently stales it.
+private = { ignore = true }
+
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
