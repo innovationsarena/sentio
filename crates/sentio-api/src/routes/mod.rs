@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod api_keys;
 pub mod attachments;
 pub mod dkim_keys;
+pub mod docs;
 pub mod domains;
 pub mod errors;
 pub mod health;
@@ -272,7 +273,9 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
-        .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
+        // Custom page + embedded bundle so /docs works without a CDN.
+        .merge(Scalar::with_url("/docs", ApiDoc::openapi()).custom_html(docs::SCALAR_HTML))
+        .route(docs::SCALAR_JS_PATH, get(docs::scalar_js))
         .nest("/v1/messages", messages_router)
         .nest("/v1/domains", domains_router)
         .nest("/v1/webhooks", webhooks_router)

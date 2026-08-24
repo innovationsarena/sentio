@@ -382,9 +382,9 @@ examples, and a **Test Request** button that calls your running server. Set the
 bearer token once in the auth panel and you can exercise the whole API from the
 browser without writing a line of curl.
 
-`/docs` loads its front-end assets from a CDN, so the browser opening it needs
-outbound internet access. Where that is blocked the page renders blank; use
-`/openapi.json` with your own tooling instead.
+The page is self-contained: its front-end bundle is embedded in the binary
+and served by Sentio itself, so `/docs` renders fine on a host with no
+outbound internet access.
 
 A generated copy of the specification is committed at
 [`docs/openapi.json`](docs/openapi.json), so you can read the API, diff it

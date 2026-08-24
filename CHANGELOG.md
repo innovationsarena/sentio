@@ -7,6 +7,13 @@ reaches 1.0.
 
 ## [Unreleased]
 
+### Changed
+- `/docs` no longer loads the Scalar front-end from a CDN. The bundle ships
+  embedded in the binary (gzipped, ~1 MiB) and is served by Sentio itself, so
+  the API reference renders on hosts without outbound internet access. The
+  provenance of the vendored bundle is documented in
+  `crates/sentio-api/assets/README.md`.
+
 ## [0.1.4] - 2026-08-24
 
 ### Fixed

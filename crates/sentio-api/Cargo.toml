@@ -47,6 +47,7 @@ ipnetwork.workspace = true
 hickory-resolver.workspace = true
 utoipa.workspace = true
 utoipa-scalar.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 sentio-smtp-server = { workspace = true, features = ["test-support"] }

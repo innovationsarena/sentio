@@ -87,6 +87,9 @@ reqwest = { version = "0.13", features = ["json"] }
 # OpenAPI documentation
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
+# The /docs front-end bundle is embedded gzipped; this inflates it for
+# clients that do not accept gzip.
+flate2 = "1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

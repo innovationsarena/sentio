@@ -3926,6 +3926,7 @@ dependencies = [
  "bytes",
  "chrono",
  "ed25519-dalek 3.0.0",
+ "flate2",
  "governor",
  "hex",
  "hickory-resolver",
