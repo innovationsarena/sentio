@@ -5,7 +5,7 @@ use utoipa::{Modify, OpenApi};
 #[openapi(
     info(
         title = "Sentio SMTP API",
-        version = "1.0.0",
+        version = env!("CARGO_PKG_VERSION"),
         description = "Multi-tenant SMTP platform API",
     ),
     paths(

@@ -142,6 +142,26 @@ never point one at a real host, and never put a credential in one.
 `#[async_trait]` for zero-cost dispatch, following `KvConn`, `SpamScorer`, and
 `LlmProvider`.
 
+## Cutting a release
+
+The version lives in one place: `version` under `[workspace.package]` in the
+root `Cargo.toml`. Everything else reads it - the startup banner prints
+`CARGO_PKG_VERSION`, and the OpenAPI document takes its `info.version` from the
+same value. A tag alone changes neither, so bump first, then tag:
+
+```bash
+# 1. bump [workspace.package] version, then
+cargo check --workspace          # refresh Cargo.lock
+cargo run -- openapi > docs/openapi.json
+git commit -am "Release 0.2.0"
+git tag -a v0.2.0 -m "v0.2.0"
+git push origin main v0.2.0
+```
+
+Pushing the tag builds the multi-arch image, publishes `0.2.0`/`0.2`/`0` and
+moves `latest`, and creates the GitHub Release with per-architecture tarballs.
+Pushes to `main` publish nothing.
+
 ## Pull requests
 
 - Keep commits focused, and explain *why* in the message rather than restating
