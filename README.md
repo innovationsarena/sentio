@@ -445,8 +445,8 @@ Authorization: Bearer <your-api-key>
 
 `sentio-mcp` is a standalone [Model Context Protocol](https://modelcontextprotocol.io)
 server that exposes the REST API as agent-callable tools, so MCP clients
-(Claude Desktop, Cursor, opencode, ...) get email capabilities with no glue
-code. It talks stdio, authenticates with a regular API key scoped to one
+(Claude Desktop, Cursor, opencode, ...) get email capabilities without writing
+any integration code. It talks stdio, authenticates with a regular API key scoped to one
 tenant, and inherits all of Sentio's existing auth and rate limiting.
 
 | Tool | What it does |
@@ -461,9 +461,11 @@ tenant, and inherits all of Sentio's existing auth and rate limiting.
 Run it against your server:
 
 ```bash
+cargo build --release -p sentio-mcp
+
 SENTIO_BASE_URL="http://localhost:8080" \
 SENTIO_API_KEY="your-api-key" \
-./target/debug/sentio-mcp
+./target/release/sentio-mcp
 ```
 
 Wire it into an MCP client config (example for Claude Desktop / opencode):

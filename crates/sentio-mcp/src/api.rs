@@ -38,7 +38,12 @@ pub struct SentioClient {
 impl SentioClient {
     pub fn new(base_url: impl Into<String>, api_key: impl Into<String>) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            // Without an explicit timeout a stalled API leaves the agent
+            // waiting on a tool call that never returns.
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
         }
@@ -66,7 +71,15 @@ impl SentioClient {
         let req = req.bearer_auth(&self.api_key);
         let resp = req.send().await?;
         let status = resp.status().as_u16();
-        let body: Value = resp.json().await?;
+        let text = resp.text().await?;
+        // A gateway error or an empty 204 is not JSON. Keep the status, which
+        // is the part the agent can act on, rather than losing it to a parse
+        // error.
+        let body: Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(_) if text.is_empty() => Value::Null,
+            Err(_) => Value::String(text),
+        };
         if (200..300).contains(&status) {
             Ok(body)
         } else {
@@ -102,6 +115,21 @@ mod tests {
             .unwrap();
 
         assert_eq!(resp["data"][0]["id"], "abc");
+    }
+
+    #[tokio::test]
+    async fn non_json_error_body_still_reports_the_status() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(502).set_body_string("<html>bad gateway</html>"))
+            .mount(&server)
+            .await;
+
+        let client = SentioClient::new(server.uri(), "k");
+        let err = client.get("/v1/messages", &[]).await.unwrap_err();
+
+        assert!(err.message().contains("502"), "got: {}", err.message());
     }
 
     #[tokio::test]

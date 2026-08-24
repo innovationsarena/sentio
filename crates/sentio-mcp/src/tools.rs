@@ -13,6 +13,22 @@ fn data(resp: Value) -> Result<String, McpError> {
     to_json(resp.get("data").cloned().unwrap_or(resp))
 }
 
+/// Validate an id before it reaches the URL path.
+///
+/// Every id Sentio issues is a UUID. Interpolating an unchecked string lets
+/// `../..` escape the endpoint once the URL is normalized, reaching routes
+/// this tool set does not expose.
+fn id_segment(value: &str) -> Result<&str, McpError> {
+    if uuid::Uuid::parse_str(value).is_ok() {
+        Ok(value)
+    } else {
+        Err(McpError::invalid_params(
+            format!("{value:?} is not a valid id (expected a UUID)"),
+            None,
+        ))
+    }
+}
+
 fn to_json(value: Value) -> Result<String, McpError> {
     serde_json::to_string_pretty(&value).map_err(|e| McpError::internal_error(e.to_string(), None))
 }
@@ -139,7 +155,7 @@ impl SentioMcpServer {
     ) -> Result<String, McpError> {
         match self
             .client
-            .get(&format!("/v1/messages/{}", params.id), &[])
+            .get(&format!("/v1/messages/{}", id_segment(&params.id)?), &[])
             .await
         {
             Ok(resp) => data(resp),
@@ -178,7 +194,7 @@ impl SentioMcpServer {
     ) -> Result<String, McpError> {
         let parent = self
             .client
-            .get(&format!("/v1/messages/{}", params.id), &[])
+            .get(&format!("/v1/messages/{}", id_segment(&params.id)?), &[])
             .await
             .map_err(|e| McpError::internal_error(e.message(), None))?
             .get("data")
@@ -245,7 +261,10 @@ impl SentioMcpServer {
         });
         match self
             .client
-            .post(&format!("/v1/domains/{}/mailboxes", params.domain_id), body)
+            .post(
+                &format!("/v1/domains/{}/mailboxes", id_segment(&params.domain_id)?),
+                body,
+            )
             .await
         {
             Ok(resp) => data(resp),
@@ -261,7 +280,10 @@ impl SentioMcpServer {
     ) -> Result<String, McpError> {
         match self
             .client
-            .get(&format!("/v1/domains/{}/mailboxes", params.domain_id), &[])
+            .get(
+                &format!("/v1/domains/{}/mailboxes", id_segment(&params.domain_id)?),
+                &[],
+            )
             .await
         {
             Ok(resp) => data(resp),
@@ -293,7 +315,17 @@ impl ServerHandler for SentioMcpServer {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_address;
+    use super::{extract_address, id_segment};
+
+    #[test]
+    fn id_segment_rejects_anything_that_is_not_a_uuid() {
+        assert!(id_segment("018f3a1c-1111-7000-8000-0000000000ab").is_ok());
+        // The first of these reached other routes before ids were validated:
+        // URL normalization collapses the dot segments.
+        for bad in ["../../v1/domains", "..%2f..%2fv1", "abc", "", "a/b"] {
+            assert!(id_segment(bad).is_err(), "accepted {bad:?}");
+        }
+    }
 
     #[test]
     fn extracts_address_from_display_name_form() {
@@ -340,10 +372,10 @@ mod reply_tests {
         let server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/v1/messages/abc"))
+            .and(path("/v1/messages/018f3a1c-1111-7000-8000-0000000000ab"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {
-                    "id": "abc",
+                    "id": "018f3a1c-1111-7000-8000-0000000000ab",
                     "message_id_header": "<parent@mail.example.com>",
                     "header_from": "\"Jane Doe\" <jane@example.com>",
                     "subject": "Quarterly report"
@@ -361,7 +393,10 @@ mod reply_tests {
             .await;
 
         let mcp = SentioMcpServer::new(SentioClient::new(server.uri(), "key"));
-        let result = mcp.reply_message(params("abc")).await.unwrap();
+        let result = mcp
+            .reply_message(params("018f3a1c-1111-7000-8000-0000000000ab"))
+            .await
+            .unwrap();
 
         assert!(result.contains("out-1"));
         let body: serde_json::Value = server
@@ -383,15 +418,18 @@ mod reply_tests {
     async fn reply_fails_cleanly_without_message_id() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/v1/messages/xyz"))
+            .and(path("/v1/messages/018f3a1c-2222-7000-8000-0000000000cd"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "data": {"id": "xyz", "header_from": "a@b.c"}
+                "data": {"id": "018f3a1c-2222-7000-8000-0000000000cd", "header_from": "a@b.c"}
             })))
             .mount(&server)
             .await;
 
         let mcp = SentioMcpServer::new(SentioClient::new(server.uri(), "key"));
-        let err = mcp.reply_message(params("xyz")).await.unwrap_err();
+        let err = mcp
+            .reply_message(params("018f3a1c-2222-7000-8000-0000000000cd"))
+            .await
+            .unwrap_err();
 
         assert!(err.message.contains("Message-ID"));
     }
