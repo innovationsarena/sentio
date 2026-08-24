@@ -7,6 +7,8 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-24
+
 ### Fixed
 - Inbound SMTP dropped the CRLF that ends the last line of a message body,
   keeping only the bytes before the `\r\n.\r\n` terminator. Anything anchored
