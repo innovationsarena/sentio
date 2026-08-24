@@ -77,6 +77,39 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  windows-binary:
+    name: build windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # aws-lc-sys, the C crypto behind rustls, assembles with NASM on MSVC.
+      - uses: ilammy/setup-nasm@v1
+
+      - name: Build
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release --bin sentio-smtp
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          New-Item -ItemType Directory -Path stage | Out-Null
+          Copy-Item target/release/sentio-smtp.exe stage/
+          Copy-Item LICENSE, LICENSE-MIT, LICENSE-APACHE, THIRD-PARTY-NOTICES.md, README.md stage/
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Compress-Archive -Path stage/* -DestinationPath "dist/sentio-smtp-$version-x86_64-pc-windows-msvc.zip"
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-binary
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
   merge:
     name: merge manifest
     needs: build
@@ -125,7 +158,7 @@ jobs:
 
   release:
     name: github release
-    needs: merge
+    needs: [merge, windows-binary]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -161,8 +194,21 @@ jobs:
                 THIRD-PARTY-NOTICES.md README.md
             rm sentio-smtp
           done
-          ( cd dist && sha256sum *.tar.gz > SHA256SUMS )
           ls -la dist
+
+      # The Windows binary is a real cargo build on a Windows runner; it cannot
+      # come out of the Linux images like the other two.
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-binary
+          path: dist
+
+      - name: Checksum everything together
+        run: |
+          set -euo pipefail
+          rm -f dist/SHA256SUMS
+          ( cd dist && sha256sum * > SHA256SUMS )
+          cat dist/SHA256SUMS
 
       - name: Create the release
         env:
@@ -190,13 +236,24 @@ jobs:
             echo
             echo "## Binaries"
             echo
-            echo "Dynamically linked, requiring glibc 2.34 or newer - Debian 12+,"
-            echo "Ubuntu 22.04+, RHEL 9+. Grant the port-binding capability"
-            echo "rather than running as root:"
+            echo "| Platform | File |"
+            echo "|---|---|"
+            echo "| Linux x86_64 | \`sentio-smtp-${VERSION}-x86_64-unknown-linux-gnu.tar.gz\` |"
+            echo "| Linux aarch64 | \`sentio-smtp-${VERSION}-aarch64-unknown-linux-gnu.tar.gz\` |"
+            echo "| Windows x86_64 | \`sentio-smtp-${VERSION}-x86_64-pc-windows-msvc.zip\` |"
+            echo
+            echo "The Linux builds are dynamically linked and need glibc 2.34 or"
+            echo "newer - Debian 12+, Ubuntu 22.04+, RHEL 9+. Binding port 25 as a"
+            echo "non-root user needs the capability rather than root:"
             echo
             echo '```bash'
             echo "sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/sentio-smtp"
             echo '```'
+            echo
+            echo "Windows has no privileged-port restriction, so no equivalent step"
+            echo "is needed there. Linux is the supported deployment target and is"
+            echo "what the container image and CI exercise; the Windows build is"
+            echo "compiled and published but not run in CI."
             echo
             echo "Verify with \`sha256sum -c SHA256SUMS\`."
             echo

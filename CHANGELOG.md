@@ -7,6 +7,17 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-24
+
+### Added
+- Windows x86_64 binary in the release, alongside the two Linux builds.
+
+### Fixed
+- The startup banner and the OpenAPI document both report the release
+  version; previously they read 0.1.0 and 1.0.0 regardless of the tag.
+- Third-party notices no longer list first-party crates, so a version bump
+  cannot stale them.
+
 ## [0.1.2] - 2026-08-24
 
 ### Added
