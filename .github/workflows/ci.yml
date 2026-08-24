@@ -39,6 +39,21 @@ jobs:
       - name: Release build
         run: cargo build --release --bin sentio-smtp
 
+      # Licence policy: what may enter the dependency graph at all.
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      # Attribution: MIT and BSD require their notices to ship with the binary,
+      # so a stale file is a compliance gap, not a cosmetic one.
+      - name: Third-party notices are up to date
+        run: |
+          cargo install --locked --features cli cargo-about
+          cargo about generate --fail about.hbs > /tmp/notices.md
+          diff -u THIRD-PARTY-NOTICES.md /tmp/notices.md \
+            || { echo "::error::THIRD-PARTY-NOTICES.md is stale - run: cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md"; exit 1; }
+
       # The committed spec must match the code, or generated clients drift.
       - name: OpenAPI spec is up to date
         run: |

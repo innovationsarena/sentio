@@ -157,7 +157,8 @@ jobs:
             docker cp "$cid:/usr/local/bin/sentio-smtp" "sentio-smtp"
             docker rm -v "$cid" >/dev/null
             tar -czf "dist/sentio-smtp-${VERSION}-${triple}.tar.gz" \
-                sentio-smtp LICENSE README.md
+                sentio-smtp LICENSE LICENSE-MIT LICENSE-APACHE \
+                THIRD-PARTY-NOTICES.md README.md
             rm sentio-smtp
           done
           ( cd dist && sha256sum *.tar.gz > SHA256SUMS )

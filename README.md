@@ -9,7 +9,7 @@
 receive mail as structured webhooks, and reply in-thread over REST - then run
 thousands of those inboxes side by side, isolated per tenant.
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 
 Agents increasingly need to *be* an email participant: receive a customer
@@ -817,4 +817,10 @@ Please do not report security vulnerabilities through public issues. See
 
 ## License
 
-[Apache License 2.0](LICENSE).
+Dual-licensed under either [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-APACHE), at your option. MIT is shorter and is compatible
+with GPLv2; Apache-2.0 additionally grants an explicit patent licence. Take
+whichever suits you - you do not have to satisfy both.
+
+Contributions are accepted under the same dual licence unless you say
+otherwise.

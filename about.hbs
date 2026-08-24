@@ -1,0 +1,25 @@
+# Third-party notices
+
+Sentio SMTP is distributed as a compiled binary that links the Rust crates
+listed below. Their licences require their copyright notices to travel with any
+redistribution, which is what this file is for.
+
+Generated from the resolved dependency graph with
+[cargo-about](https://github.com/EmbarkStudios/cargo-about); regenerate with:
+
+```bash
+cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md
+```
+
+Sentio itself is `MIT OR Apache-2.0`; see [LICENSE](LICENSE).
+
+{{#each licenses}}
+## {{name}}
+
+Used by {{#each used_by}}`{{crate.name}} {{crate.version}}`{{#unless @last}}, {{/unless}}{{/each}}
+
+```
+{{text}}
+```
+
+{{/each}}

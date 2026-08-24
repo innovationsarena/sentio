@@ -1,0 +1,33 @@
+# cargo-about: which licences may appear in a distributed build, and where to
+# find their texts. This is the attribution side; deny.toml is the policy side.
+#
+#   cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md
+#
+# `targets` is deliberately narrow. Without it the crawl includes crates that
+# only build for other platforms - r-efi is a UEFI-only dependency, and pulling
+# it in would attribute code no Linux build ever links.
+accepted = [
+    "Apache-2.0",
+    "MIT",
+    "MIT-0",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
+    "OpenSSL",
+]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true

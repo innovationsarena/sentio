@@ -33,7 +33,7 @@ release pipeline was still being wired up.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `.env.example`.
 
 ### Changed
-- Relicensed under Apache-2.0.
+- Relicensed as `MIT OR Apache-2.0`, so a user may take whichever terms suit them.
 - KV storage ships a single Redis backend behind the `KvConn` trait.
 - Documentation rewritten around the agent-inbox use case, with the full API
   surface enumerated.

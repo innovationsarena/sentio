@@ -96,6 +96,26 @@ scripts/e2e/run-e2e.sh
 
 See [`docs/testing.md`](docs/testing.md).
 
+## Licences and third-party notices
+
+Two separate things, both enforced in CI:
+
+- **Policy** - `deny.toml` lists which licences may appear in the dependency
+  graph. `cargo deny check` fails on anything else, so a new dependency with an
+  unexpected licence is a deliberate decision rather than a surprise. Advisory
+  exceptions are recorded there with reasons; revisit them on dependency bumps.
+- **Attribution** - MIT and BSD require their copyright notices to ship with a
+  binary. `THIRD-PARTY-NOTICES.md` is generated from the resolved graph and
+  shipped in the image and release tarballs. Regenerate it whenever
+  dependencies change:
+
+```bash
+cargo about generate --fail about.hbs > THIRD-PARTY-NOTICES.md
+```
+
+Sentio itself is dual-licensed `MIT OR Apache-2.0`; contributions are accepted
+under the same terms.
+
 ## Conventions
 
 **Identifiers.** UUIDv4 for most entities; UUIDv7 for anything in a partitioned

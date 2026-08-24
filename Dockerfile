@@ -28,7 +28,7 @@ FROM debian:bookworm-slim AS runtime
 LABEL org.opencontainers.image.title="Sentio SMTP" \
       org.opencontainers.image.description="Email inbox API for AI agents: a multi-tenant mail server in Rust" \
       org.opencontainers.image.source="https://github.com/truespar/sentio" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="MIT OR Apache-2.0"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -46,6 +46,9 @@ RUN apt-get update \
 COPY --from=builder /build/target/release/sentio-smtp /usr/local/bin/sentio-smtp
 COPY --from=builder /build/migrations /usr/share/sentio/migrations
 COPY config/oss.toml /etc/sentio/oss.toml
+# Licence obligations travel with the binary, not just the repo.
+COPY LICENSE LICENSE-MIT LICENSE-APACHE THIRD-PARTY-NOTICES.md \
+     /usr/share/doc/sentio/
 
 # Allow the non-root user to bind :25/465/587 without full root.
 RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/sentio-smtp

@@ -1,33 +1,79 @@
+# cargo-deny: policy. What licences may enter the dependency graph, whether
+# advisories are outstanding, and where crates may come from.
+#
+# THIRD-PARTY-NOTICES.md is the other half of this - cargo-about produces the
+# attribution text those licences require. Policy here, artefact there.
+#
+#   cargo deny check
+
+[graph]
+# The two targets we actually ship. Without this the graph includes crates that
+# only build elsewhere (r-efi is UEFI-only) and the policy would be arguing
+# about code no release contains.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+]
+
 [advisories]
-vulnerability = "deny"
-unmaintained = "warn"
+version = 2
 yanked = "warn"
-notice = "warn"
+# Each entry is a decision, not a mute button. Re-check on dependency bumps.
+ignore = [
+    # Marvin: a timing sidechannel in RSA private-key operations, exploitable
+    # by an attacker who can submit ciphertexts and measure decryption timing.
+    # `rsa` is used in exactly one place - generating a DKIM keypair in
+    # routes/dkim_keys.rs. No decryption, no oracle, no attacker-supplied
+    # ciphertext. Signing is done by mail-auth, not this crate. There is also
+    # no fixed release to move to.
+    { id = "RUSTSEC-2023-0071", reason = "rsa is used only for DKIM key generation; Marvin needs a decryption oracle" },
+
+    # The next four all arrive through aws-smithy-http-client, which still
+    # carries a hyper 0.14 / rustls 0.21 stack for the S3 client. They affect
+    # TLS to the object store, not SMTP: Sentio's own listeners and delivery
+    # client are on rustls 0.23. Fixing means getting the AWS SDK off its
+    # legacy client, which is tracked separately.
+    { id = "RUSTSEC-2026-0258", reason = "h2 0.3 via aws-smithy-http-client; S3 client path only" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101 via aws-smithy-http-client; S3 client path only" },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101 via aws-smithy-http-client; S3 client path only" },
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101 via aws-smithy-http-client; S3 client path only" },
+
+    # Deprecated in favour of rustls-pki-types' own PEM parsing. Not a
+    # vulnerability; migration is a small change in the TLS loader.
+    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; no known vulnerability" },
+]
 
 [licenses]
-unlicensed = "deny"
+version = 2
+confidence-threshold = 0.9
+# Exactly the licences present today. Anything new fails the build and gets a
+# deliberate decision rather than sliding in unnoticed - which is the point of
+# having this file at all.
 allow = [
     "MIT",
+    "MIT-0",
     "Apache-2.0",
+    "BSD-1-Clause",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "0BSD",
     "ISC",
-    "Unicode-3.0",
-    "Unicode-DFS-2016",
-    "OpenSSL",
     "Zlib",
     "BSL-1.0",
     "CC0-1.0",
-    "MPL-2.0",
+    "Unlicense",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
 ]
-confidence-threshold = 0.8
+exceptions = []
 
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
 
 [sources]
-unknown-registry = "warn"
-unknown-git = "warn"
+unknown-registry = "deny"
+unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
