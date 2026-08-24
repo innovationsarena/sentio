@@ -863,6 +863,25 @@ pub struct SendMessageMultipartRequest {
     pub references: Vec<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/messages/send-multipart",
+    tag = "Messages",
+    request_body(
+        content_type = "multipart/form-data",
+        description = "A part named `message` holding SendMessageMultipartRequest as \
+                       JSON, plus zero or more file parts. Each file part may carry \
+                       X-Sentio-Disposition (attachment|inline) and X-Sentio-Content-Id, \
+                       the latter required for inline images.",
+    ),
+    responses(
+        (status = 200, description = "Accepted for delivery", body = DataResponse<SendResponse>),
+        (status = 400, description = "Malformed multipart body or message part", body = ErrorResponse),
+        (status = 401, description = "Missing or invalid credentials", body = ErrorResponse),
+        (status = 422, description = "Sender domain not verified, or all recipients suppressed", body = ErrorResponse),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn send_multipart(
     State(state): State<AppState>,
     auth: AuthContext,

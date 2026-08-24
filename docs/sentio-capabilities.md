@@ -14,7 +14,7 @@ Sentio SMTP is a complete email infrastructure platform - not a patched legacy M
 **What makes it different:**
 
 - **Rust performance and safety** - no buffer overflows, no data races, zero-copy parsing
-- **API-first** - 100+ REST endpoints; SMTP is a protocol layer, not the primary interface
+- **API-first** - 116 REST operations; SMTP is a protocol layer, not the primary interface
 - **Multi-tenant from the ground up** - tenant isolation reaches every layer
 - **AI-native** - LLM-based classification and auto-response built into the processing pipeline
 - **Three-tier anti-spam** - Redis abuse guard + rspamd/builtin scoring + LLM tiebreaker
@@ -156,7 +156,7 @@ Sentio implements a comprehensive set of email standards. All testable requireme
 
 ### API
 
-Sentio exposes 100+ REST endpoints across 18 resource groups, all versioned under `/v1/`.
+Sentio exposes 116 operations across 22 resource groups, all versioned under `/v1/`.
 
 | Resource Group | Key Endpoints |
 |----------------|---------------|
@@ -370,7 +370,7 @@ permanent failures land on the dead stream for later inspection.
 |------------|----------------|----------------|-------------|
 | Language | C | Managed | Rust |
 | Memory safety | No | N/A | Yes |
-| REST API | None | Yes | Yes (100+ endpoints) |
+| REST API | None | Yes | Yes (116 operations) |
 | Multi-tenancy | None | Limited | Full (3-tier isolation) |
 | Webhooks | None | Yes | Yes (HMAC-signed, tiered retry) |
 | Anti-spam | External (SpamAssassin) | Managed | Three-tier native (Redis + rspamd + LLM) |

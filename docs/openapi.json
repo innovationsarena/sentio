@@ -1565,6 +1565,52 @@
         ]
       }
     },
+    "/v1/domains/{id}/dns-check": {
+      "post": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "run_dns_check",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_DomainResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/v1/domains/{id}/dns-records": {
       "get": {
         "tags": [
@@ -2133,6 +2179,67 @@
           },
           "422": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/messages/send-multipart": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "operationId": "send_multipart",
+        "requestBody": {
+          "description": "A part named `message` holding SendMessageMultipartRequest as JSON, plus zero or more file parts. Each file part may carry X-Sentio-Disposition (attachment|inline) and X-Sentio-Content-Id, the latter required for inline images.",
+          "content": {
+            "multipart/form-data": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted for delivery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_SendResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed multipart body or message part",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Sender domain not verified, or all recipients suppressed",
             "content": {
               "application/json": {
                 "schema": {

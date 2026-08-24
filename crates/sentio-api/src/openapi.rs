@@ -13,6 +13,7 @@ use utoipa::{Modify, OpenApi};
         crate::routes::messages::send_message,
         crate::routes::messages::send_batch,
         crate::routes::messages::send_raw,
+        crate::routes::messages::send_multipart,
         crate::routes::messages::list_messages,
         crate::routes::messages::get_message,
         crate::routes::messages::get_message_raw,
@@ -28,6 +29,7 @@ use utoipa::{Modify, OpenApi};
         crate::routes::domains::delete_domain,
         crate::routes::domains::verify_domain,
         crate::routes::domains::get_dns_records,
+        crate::routes::domains::run_dns_check,
         // Mailboxes
         crate::routes::mailboxes::list_mailboxes,
         crate::routes::mailboxes::create_mailbox,

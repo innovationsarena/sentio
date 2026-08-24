@@ -19,15 +19,16 @@ surface. Sentio is the whole path in one service - an inbox per agent, parsed
 and authenticated inbound delivered as a webhook, and sending over the same
 API.
 
-```
-                        ┌──────────────── Sentio ────────────────┐
-   customer ──SMTP──►   │  agent@acme.example.com                │  ──webhook──►  your agent
-                        │  authenticate → scan → score → route   │
-                        │                                        │
-   your agent ──REST──► │  sign (DKIM) → queue → deliver         │  ──SMTP────►   customer
-                        └────────────────────────────────────────┘
-                              multi-tenant: one deployment,
-                              many customers, many agents
+```mermaid
+flowchart LR
+    customer([customer]) -- SMTP --> IN
+    subgraph Sentio["Sentio · multi-tenant"]
+        IN["inbound<br/>authenticate → scan → score → route"]
+        OUT["outbound<br/>sign (DKIM) → queue → deliver"]
+    end
+    IN -- webhook --> agent([your agent])
+    agent -- REST --> OUT
+    OUT -- SMTP --> customer
 ```
 
 **Built for platforms.** Tenancy reaches every layer: each domain, mailbox, API
@@ -113,10 +114,9 @@ curl -H "Authorization: Bearer sentio_bootstrap_admin_CHANGE_ME" \
      localhost:8080/v1/tenants
 ```
 
-> [!WARNING]
-> Rotate this key before exposing the host to anything untrusted. It has
-> wildcard (`*`) scope. Create a replacement via
-> `POST /v1/tenants/{id}/api-keys`, then delete the bootstrap key.
+Rotate this key before exposing the host to anything untrusted - it has
+wildcard (`*`) scope. Create a replacement via
+`POST /v1/tenants/{id}/api-keys`, then delete the bootstrap one.
 
 ### Ports
 
@@ -322,6 +322,12 @@ Key sections:
 | `[auth]` | DKIM/SPF/DMARC/ARC behaviour |
 | `[llm]` | Provider, model, and when classification runs |
 | `[observability]` | Log format and level, metrics, tracing |
+| `[tracking]` | Open and click tracking, branded tracking domains |
+| `[webhooks]` | Event dispatch: signing, retries, concurrency caps |
+| `[deliverability]` | FBL/ARF handling, BATV, one-click unsubscribe |
+| `[analytics]` | Rollup and retention for engagement data |
+| `[error_events]` | Error capture and how long it is kept |
+| `[listmonk]` | Optional bounce bridge to a Listmonk instance |
 
 Defaults live in [`config/default.toml`](config/default.toml); the container
 image ships [`config/oss.toml`](config/oss.toml).
@@ -335,17 +341,16 @@ The server documents itself. Two endpoints, both live as soon as it starts:
 | Endpoint | What it is |
 |---|---|
 | `/docs` | Interactive API reference with a built-in request client |
-| `/openapi.json` | The OpenAPI 3.1 document - 114 operations across 83 paths |
+| `/openapi.json` | The OpenAPI 3.1 document - 116 operations across 85 paths |
 
 Open <http://localhost:8080/docs> and you get every endpoint with its schemas,
 examples, and a **Test Request** button that calls your running server. Set the
 bearer token once in the auth panel and you can exercise the whole API from the
 browser without writing a line of curl.
 
-> [!NOTE]
-> `/docs` loads its front-end assets from a CDN, so the browser opening it needs
-> outbound internet access. Where that is blocked the page renders blank - use
-> `/openapi.json` with your own tooling instead.
+`/docs` loads its front-end assets from a CDN, so the browser opening it needs
+outbound internet access. Where that is blocked the page renders blank; use
+`/openapi.json` with your own tooling instead.
 
 A generated copy of the specification is committed at
 [`docs/openapi.json`](docs/openapi.json), so you can read the API, diff it
@@ -391,7 +396,7 @@ npx @openapitools/openapi-generator-cli generate \
 | Errors | 3 | Captured error events with a summary endpoint |
 | Health | 2 | Liveness and readiness probes |
 
-114 operations across 83 paths.
+116 operations across 85 paths.
 
 Authentication is a bearer token on every `/v1/**` route:
 
@@ -502,10 +507,9 @@ team, or run a catch-all that lands in an inbox somebody already reads. Pair it
 with `auto_reply` to acknowledge the sender immediately while the mail is on its
 way to a human.
 
-> [!IMPORTANT]
-> Give the forwarding domain its own DKIM key. Re-signing is what makes the
-> rewritten `From:` authenticate; without an active key the forward still goes
-> out, but unsigned, and picky receivers will treat it accordingly.
+Give the forwarding domain its own DKIM key. Re-signing is what makes the
+rewritten `From:` authenticate; without an active key the forward still goes
+out, just unsigned.
 
 ### Scaling to many tenants
 
@@ -563,7 +567,7 @@ Also available: `/v1/messages/send-batch` (up to 500), `/v1/messages/send-raw`
 status and per-message events come from `/v1/messages/{id}` and
 `/v1/messages/{id}/events`.
 
-The full API - 114 operations across 83 paths - is described by the OpenAPI
+The full API - 116 operations across 85 paths - is described by the OpenAPI
 document the server serves at `/openapi.json`.
 
 ---
