@@ -66,11 +66,28 @@ sys.exit(0 if any(m.get('subject')==subj for m in json.load(sys.stdin)['data']) 
         fail "message never appeared in the API"; return 1
     fi
 
-    if dc logs sentio --since 5m 2>&1 \
-         | grep -q 'webhook dispatched successfully'; then
-        pass "inbound route dispatched to the webhook sink"
+    local msg_id
+    msg_id="$(api GET "/v1/messages?direction=inbound&limit=25" | python3 -c "
+import json,sys
+subj=sys.argv[1]
+for m in json.load(sys.stdin)['data']:
+    if m.get('subject')==subj: print(m['id']); break
+" "$IN_SUBJECT")"
+
+    # Assert the sink received *this* message. Grepping sentio's log for a
+    # generic success line was wrong in both directions: dispatch is async, so
+    # the line may not exist yet, and an earlier run's line inside the same
+    # --since window passed the check for free.
+    _delivered() {
+        local lg
+        [ -n "$msg_id" ] || return 1
+        lg="$(dc logs webhook-sink --since 10m 2>&1)"
+        printf '%s' "$lg" | grep -q "$msg_id"
+    }
+    if wait_for "inbound webhook delivery" 30 _delivered; then
+        pass "inbound route delivered $msg_id to the webhook sink"
     else
-        fail "no successful webhook dispatch in the sentio log"
+        fail "the webhook sink never received message ${msg_id:-<unknown>}"
     fi
 }
 
@@ -255,14 +272,22 @@ test_webhook_signature() {
     local cap="/tmp/sentio-e2e-hook-$STAMP"
     rm -f "$cap" "$cap.headers"
     python3 - "$cap" <<'EOF' &
-import http.server, json, sys
+import base64, http.server, itertools, json, os, sys
 OUT = sys.argv[1]
+seq = itertools.count()
 class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-        open(OUT, 'wb').write(raw)
-        json.dump({k.lower(): v for k, v in self.headers.items()},
-                  open(OUT + '.headers', 'w'))
+        # One file per delivery, written whole then renamed. A message emits
+        # several events, so overwriting a shared pair of files races: the body
+        # of one delivery ends up beside the headers of the next, and the
+        # signature "fails" for a reason that has nothing to do with signing.
+        rec = {'headers': {k.lower(): v for k, v in self.headers.items()},
+               'body_b64': base64.b64encode(raw).decode()}
+        path = f"{OUT}.{next(seq)}"
+        with open(path + '.tmp', 'w') as f:
+            json.dump(rec, f)
+        os.rename(path + '.tmp', path)
         self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
     def log_message(self, *a): pass
 http.server.HTTPServer(('0.0.0.0', 19999), H).serve_forever()
@@ -270,9 +295,22 @@ EOF
     local srv=$!
     sleep 2
 
-    local secret
-    secret="$(api POST /v1/webhooks -d "{\"url\":\"http://$gw:19999/\",\"event_types\":[\"queued\",\"delivered\",\"bounced\"]}" \
-              | jqf "d['data']['signing_secret']")"
+    # Remove any subscription left behind by an earlier run. They all point at
+    # this URL with different secrets, so stale ones deliver events we cannot
+    # verify and the check fails for a reason unrelated to signing.
+    local stale
+    stale="$(api GET /v1/webhooks | python3 -c "
+import json,sys
+url=sys.argv[1]
+print(' '.join(w['id'] for w in json.load(sys.stdin)['data'] if w['url']==url))
+" "http://$gw:19999/")"
+    for id in $stale; do api DELETE "/v1/webhooks/$id" >/dev/null; done
+    [ -n "$stale" ] && info "removed $(echo "$stale" | wc -w) stale subscription(s)"
+
+    local secret webhook_id created
+    created="$(api POST /v1/webhooks -d "{\"url\":\"http://$gw:19999/\",\"event_types\":[\"queued\",\"delivered\",\"bounced\"]}")"
+    secret="$(printf '%s' "$created" | jqf "d['data']['signing_secret']")"
+    webhook_id="$(printf '%s' "$created" | jqf "d['data']['id']")"
     if [ -z "$secret" ]; then kill "$srv" 2>/dev/null; fail "could not subscribe a webhook"; return 1; fi
 
     api POST /v1/messages/send -d "{
@@ -280,25 +318,40 @@ EOF
         \"subject\":\"e2e-hook-$STAMP\",\"text\":\"x\"}" >/dev/null
 
     local i=0
-    while [ ! -f "$cap" ] && [ "$i" -lt 30 ]; do sleep 2; i=$((i+1)); done
+    while [ -z "$(ls "$cap".[0-9]* 2>/dev/null)" ] && [ "$i" -lt 30 ]; do sleep 2; i=$((i+1)); done
+    sleep 3   # let any sibling events for the same message land too
     kill "$srv" 2>/dev/null
 
-    if [ ! -f "$cap" ]; then fail "no webhook delivery captured"; return 1; fi
-    if python3 - "$cap" "$secret" <<'EOF'
-import json, sys, hmac, hashlib
-cap, secret = sys.argv[1], sys.argv[2]
-raw = open(cap, 'rb').read()
-h = json.load(open(cap + '.headers'))
+    if [ -z "$(ls "$cap".[0-9]* 2>/dev/null)" ]; then
+        fail "no webhook delivery captured"; return 1
+    fi
+    local out
+    out="$(python3 - "$secret" "$cap".[0-9]* <<'EOF'
+import base64, glob, json, sys, hmac, hashlib
+secret, paths = sys.argv[1], sys.argv[2:]
 need = ('x-sentio-event', 'x-sentio-timestamp', 'x-sentio-nonce', 'x-sentio-signature')
-if any(k not in h for k in need):
-    print('missing headers:', [k for k in need if k not in h]); sys.exit(1)
-msg = f"{h['x-sentio-timestamp']}.{h['x-sentio-nonce']}.".encode() + raw
-want = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
-sys.exit(0 if hmac.compare_digest(want, h['x-sentio-signature']) else 1)
+checked = 0
+for p in paths:
+    rec = json.load(open(p))
+    h, raw = rec['headers'], base64.b64decode(rec['body_b64'])
+    missing = [k for k in need if k not in h]
+    if missing:
+        print(f"missing headers on {h.get('x-sentio-event','?')}: {missing}"); sys.exit(1)
+    msg = f"{h['x-sentio-timestamp']}.{h['x-sentio-nonce']}.".encode() + raw
+    want = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(want, h['x-sentio-signature']):
+        print(f"mismatch on event {h['x-sentio-event']}"); sys.exit(1)
+    checked += 1
+print(checked)
 EOF
-    then pass "signature recomputes over the raw body"
-    else fail "signature did not verify"; fi
-    rm -f "$cap" "$cap.headers"
+)"
+    if [ "$?" -eq 0 ] && [ -n "$out" ]; then
+        pass "signature recomputes over the raw body ($out delivery/deliveries)"
+    else
+        fail "signature did not verify: $out"
+    fi
+    rm -f "$cap".[0-9]*
+    [ -n "$webhook_id" ] && api DELETE "/v1/webhooks/$webhook_id" >/dev/null
 }
 
 # Skipped unless a certificate is mounted, which the default stack does not do.
