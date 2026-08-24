@@ -182,14 +182,27 @@ docker compose down -v    # stop and delete all volumes
 
 | Service | Default address | Purpose |
 |---|---|---|
-| PostgreSQL 18 | `localhost:5432` | All persistent state |
+| PostgreSQL 18+ | `localhost:5432` | All persistent state |
 | Redis or Valkey | `localhost:6379` | Rate limits, bans, greylist, reputation |
 | NATS with JetStream | `localhost:4222` | Delivery, retry, webhook, and event pipelines |
 | S3-compatible storage | `localhost:9000` | Raw `.eml` and attachment blobs |
 
+PostgreSQL 18 is a hard floor: the schema uses `uuidv7()`, which arrived as a
+built-in in 18. On an older server the migration stops with
+`function uuidv7() does not exist`, which does not otherwise explain itself.
+Check with `psql -tAc 'SHOW server_version'` before you start.
+
 Any S3-compatible endpoint works - AWS S3, Cloudflare R2, MinIO, SeaweedFS,
 Ceph. For NATS, JetStream must be enabled (`nats-server -js`); Sentio creates
 its own streams on startup.
+
+All four are required, and Sentio exits at startup if the KV store or the queue
+is unreachable. Install them before step 6, or run just those four from the
+compose file and keep Sentio itself on the host:
+
+```bash
+docker compose up -d postgres redis nats minio
+```
 
 **Optional services** - Sentio degrades gracefully if these are absent.
 
@@ -237,6 +250,15 @@ sudo -u postgres createuser --pwprompt sentio
 sudo -u postgres createdb --owner=sentio sentio
 ```
 
+`--pwprompt` asks for a password interactively. It has to match the one in
+`database.url`, which ships as `sentio`. To script it, or to use a different
+password, set both together:
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE sentio LOGIN PASSWORD 'sentio';"
+sudo -u postgres createdb --owner=sentio sentio
+```
+
 ### 4. Apply migrations
 
 The binary embeds its migrations and applies them in order:
@@ -266,18 +288,26 @@ credentials. See [Configuration](#configuration).
 ./target/release/sentio-smtp --config /etc/sentio/sentio.toml serve
 ```
 
+This needs PostgreSQL, Redis, NATS and the object store already running - see
+[Requirements](#requirements).
+
 Binding ports below 1024 as a non-root user needs the capability rather than
-root:
+root. Grant it on whichever copy you are running:
 
 ```bash
-sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/sentio-smtp
+sudo setcap 'cap_net_bind_service=+ep' target/release/sentio-smtp
 ```
+
+Under systemd this is unnecessary - the unit grants
+`AmbientCapabilities=CAP_NET_BIND_SERVICE` instead.
 
 ### 7. Run as a service
 
 A unit file is included at [`deploy/sentio-smtp.service`](deploy/sentio-smtp.service):
 
 ```bash
+sudo useradd --system --home-dir /var/lib/sentio --shell /usr/sbin/nologin sentio
+sudo install -d -o sentio -g sentio /var/lib/sentio
 sudo cp target/release/sentio-smtp /usr/local/bin/
 sudo cp deploy/sentio-smtp.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -285,8 +315,12 @@ sudo systemctl enable --now sentio-smtp
 journalctl -u sentio-smtp -f
 ```
 
-Review the unit's `Requires=`/`After=` lines first - they assume the supporting
-services run on the same host.
+The unit runs as the `sentio` user created above and reads
+`/etc/sentio/sentio.toml`, so make that file readable by it. Check the
+`Requires=`/`After=` lines before enabling: they name `postgresql.service`,
+`nats.service` and `redis-server.service`, and systemd refuses to start a unit
+whose `Requires=` target does not exist. Drop or rename any you run
+differently - in a container, on another host, or under a different unit name.
 
 ---
 
