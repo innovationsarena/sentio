@@ -62,17 +62,22 @@ api() {
 jqf() { python3 -c "import json,sys;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
 
 # ── Output ──────────────────────────────────────────────────────────────────
-_pass=0; _fail=0
+_pass=0; _fail=0; _skip=0
 # stderr, so helpers can log while their stdout is captured by the caller.
 info() { printf '\033[36m··\033[0m %s\n' "$*" >&2; }
 pass() { _pass=$((_pass+1)); printf '\033[32mok\033[0m %s\n' "$*"; }
 fail() { _fail=$((_fail+1)); printf '\033[31mFAIL\033[0m %s\n' "$*" >&2; }
+# Not every check can run everywhere - TLS needs a certificate mounted. A skip
+# says so out loud rather than quietly passing.
+skip() { _skip=$((_skip+1)); printf '\033[33m--\033[0m %s\n' "$*"; }
 summary() {
     echo
+    local tail=""
+    [ "$_skip" -gt 0 ] && tail=", $_skip skipped"
     if [ "$_fail" -eq 0 ]; then
-        printf '\033[32m%d passed, 0 failed\033[0m\n' "$_pass"; return 0
+        printf '\033[32m%d passed, 0 failed%s\033[0m\n' "$_pass" "$tail"; return 0
     fi
-    printf '\033[31m%d passed, %d failed\033[0m\n' "$_pass" "$_fail"; return 1
+    printf '\033[31m%d passed, %d failed%s\033[0m\n' "$_pass" "$_fail" "$tail"; return 1
 }
 
 # Poll until `cmd` succeeds or the deadline passes.
@@ -85,4 +90,13 @@ wait_for() {
     done
     echo "timed out after ${timeout}s waiting for: $desc" >&2
     return 1
+}
+
+# Run a redis-cli command inside the stack.
+redis_cli() { dc exec -T redis redis-cli "$@" 2>/dev/null | tr -d '\r'; }
+
+# Host address the sentio container can reach us on, for webhook capture.
+docker_gateway() {
+    "${DOCKER_BIN[@]}" network inspect sentio-oss_sentio_net \
+        --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null
 }

@@ -132,6 +132,10 @@ services:
   clamav:
     image: clamav/clamav:1.5.4
     restart: unless-stopped
+    environment:
+      # Signature checks per day. The image defaults to 1, which can leave the
+      # scanner a full day behind; the feed publishes several times daily.
+      FRESHCLAM_CHECKS: "24"
     volumes:
       - clamav_data:/var/lib/clamav
     healthcheck:

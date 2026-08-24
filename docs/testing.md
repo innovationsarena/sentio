@@ -42,6 +42,30 @@ Two flows are exercised:
 | Inbound | host SMTP client → `sentio:25` → pipeline → inbound route → `webhook-sink` |
 | Outbound | host HTTP client → `POST /v1/messages/send` → relay → `mailpit` |
 | Attachment | host SMTP client → parsed and virus-scanned → object store → back out over the API |
+| Scanning | GTUBE must score above 10; EICAR must be rejected in-band |
+| Event webhook | HMAC recomputed over the raw delivered bytes |
+| TLS and AUTH | STARTTLS upgrade, then AUTH - skipped without a certificate |
+| Abuse tier | connection rate limiter and DNSBL cache writing to the KV store |
+
+Several of these exist because a healthy container proves nothing about
+whether a dependency is actually consulted. rspamd answered every request for
+weeks while scoring every message identically, because inbound was dropping the
+CRLF that ends the last body line; GTUBE is the assertion that would have
+caught it. The webhook check recomputes the signature over the raw bytes rather
+than a re-serialised body, since the latter would pass even if the scheme were
+wrong.
+
+To include the TLS and AUTH checks, mount a certificate. A self-signed one is
+enough locally:
+
+```bash
+mkdir -p tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
+  -keyout tls/key.pem -out tls/cert.pem -subj "/CN=localhost"
+```
+
+then add `- ./tls:/etc/sentio/tls:ro` to the `sentio` service. Without it those
+checks report as skipped rather than failing.
 
 The attachment flow sends 20 kB of random bytes and compares the SHA-256 of
 what comes back out of `/v1/messages/{id}/attachments/{id}`, so an encoding
