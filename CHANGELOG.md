@@ -7,6 +7,22 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-24
+
+### Added
+- Third-party notices ship in the image and release tarballs.
+- `cargo-deny` and a notices freshness check run in CI.
+
+### Changed
+- Dual-licensed `MIT OR Apache-2.0`.
+
+### Fixed
+- `POST /v1/messages/send-multipart` and `POST /v1/domains/{id}/dns-check`
+  were routed but missing from the OpenAPI document, so generated clients
+  lost them. The spec now covers all 116 operations.
+- README documented 13 of 20 configuration sections and carried stale
+  operation counts.
+
 ## [0.1.1] - 2026-08-24
 
 First release with published artifacts: a multi-arch container image and
