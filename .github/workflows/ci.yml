@@ -1,9 +1,19 @@
 name: CI
 
 on:
+  # Only main. A branch that is not in a pull request has nothing to gate, and
+  # a branch that is gets covered by the pull_request trigger below - listing
+  # both here ran every branch twice.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+
+# One run per ref. Pushing a fixup cancels the run it supersedes instead of
+# racing it; without this a branch with three quick commits keeps three full
+# runs alive.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always

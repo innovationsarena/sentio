@@ -30,6 +30,16 @@ cargo clippy --workspace --all-targets  # lints
 cargo fmt --all                    # formatting
 ```
 
+To have the first two run automatically before every push:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+CI runs on pull requests and on `main`, not on every branch push, so a branch
+without a pull request is not checked for you. `git push --no-verify` skips the
+hook when you need it to.
+
 ## SQL and the offline cache
 
 Queries are checked at compile time by `sqlx`. The committed `.sqlx/` directory

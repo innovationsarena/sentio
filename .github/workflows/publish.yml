@@ -16,6 +16,12 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Serialise releases, but never cancel one. A half-published release leaves a
+# manifest without its binaries, so a later tag waits rather than killing it.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE: ${{ github.repository }}
