@@ -1,0 +1,38 @@
+services:
+  sentio:
+    environment:
+      SENTIO__SERVER__HOSTNAME: "${SENTIO_HOSTNAME}"
+      SENTIO__DATABASE__URL: "postgres://sentio:${POSTGRES_PASSWORD}@postgres:5432/sentio"
+      SENTIO__STORAGE__ACCESS_KEY: "${MINIO_USER}"
+      SENTIO__STORAGE__SECRET_KEY: "${MINIO_PASSWORD}"
+    ports: !override
+      - "25:25"
+      - "465:465"
+      - "587:587"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.sentio.rule=Host(`${SENTIO_HOSTNAME}`)
+      - traefik.http.routers.sentio.entrypoints=https
+      - traefik.http.routers.sentio.tls.certresolver=letsencrypt
+      - traefik.http.services.sentio.loadbalancer.server.port=8080
+
+  sentio-migrate:
+    environment:
+      SENTIO__DATABASE__URL: "postgres://sentio:${POSTGRES_PASSWORD}@postgres:5432/sentio"
+      SENTIO__STORAGE__ACCESS_KEY: "${MINIO_USER}"
+      SENTIO__STORAGE__SECRET_KEY: "${MINIO_PASSWORD}"
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: "${MINIO_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"
+    ports: !override []
+
+  minio-init:
+    environment:
+      MINIO_ROOT_USER: "${MINIO_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"

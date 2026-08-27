@@ -26,7 +26,7 @@ config/production.toml
 nul
 
 # Local compose overrides (per-machine, not for commit)
-docker-compose.override.yml
+# docker-compose.override.yml
 
 # Local TLS material for testing (never commit keys)
 tls/
