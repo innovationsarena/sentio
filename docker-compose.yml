@@ -36,26 +36,26 @@ name: sentio-oss
 
 x-sentio-env: &sentio-env
   RUST_LOG: info
-  SENTIO__DATABASE__URL: "postgres://sentio:sentio@postgres:5432/sentio"
+  SENTIO__SERVER__HOSTNAME: "${SENTIO_HOSTNAME}"
+  SENTIO__DATABASE__URL: "postgres://sentio:${POSTGRES_PASSWORD}@postgres:5432/sentio"
   SENTIO__KV__BACKEND: "redis"
   SENTIO__REDIS__URL: "redis://redis:6379/0"
   SENTIO__NATS__URL: "nats://nats:4222"
   SENTIO__STORAGE__ENDPOINT_URL: "http://minio:9000"
-  SENTIO__STORAGE__ACCESS_KEY: "sentio-dev"
-  SENTIO__STORAGE__SECRET_KEY: "sentio-dev-secret-CHANGE_ME"
+  SENTIO__STORAGE__ACCESS_KEY: "${MINIO_USER}"
+  SENTIO__STORAGE__SECRET_KEY: "${MINIO_PASSWORD}"
   SENTIO__STORAGE__BUCKET: "sentio-attachments"
   SENTIO__SCANNING__CLAMD_HOST: "clamav:3310"
   SENTIO__SPAM__RSPAMD__URL: "http://rspamd:11333"
 
 services:
-
   # ── Data plane ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: sentio
-      POSTGRES_PASSWORD: sentio
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_DB: sentio
     volumes:
       # PG18+ images store data in a major-version subdirectory and reject a
@@ -89,7 +89,8 @@ services:
       - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - nats_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:8222/healthz | grep -q ok"]
+      test:
+        ["CMD-SHELL", "wget -q -O - http://localhost:8222/healthz | grep -q ok"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -100,12 +101,10 @@ services:
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: "sentio-dev"
-      MINIO_ROOT_PASSWORD: "sentio-dev-secret-CHANGE_ME"
+      MINIO_ROOT_USER: "${MINIO_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"
     volumes:
       - minio_data:/data
-    ports:
-      - "9001:9001"          # web console (optional; comment out to hide)
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
       interval: 5s
@@ -120,8 +119,8 @@ services:
       minio: { condition: service_healthy }
     environment:
       MINIO_URL: "http://minio:9000"
-      MINIO_ROOT_USER: "sentio-dev"
-      MINIO_ROOT_PASSWORD: "sentio-dev-secret-CHANGE_ME"
+      MINIO_ROOT_USER: "${MINIO_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"
       SENTIO_BUCKET: "sentio-attachments"
     volumes:
       - ./docker/minio/init.sh:/init.sh:ro
@@ -143,7 +142,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 20
-      start_period: 300s        # freshclam DB download can take a while
+      start_period: 300s # freshclam DB download can take a while
     networks: [sentio_net]
 
   rspamd:
@@ -178,19 +177,18 @@ services:
     restart: unless-stopped
     depends_on:
       sentio-migrate: { condition: service_completed_successfully }
-      postgres:       { condition: service_healthy }
-      redis:          { condition: service_healthy }
-      nats:           { condition: service_healthy }
-      minio-init:     { condition: service_completed_successfully }
-      clamav:         { condition: service_healthy }
-      rspamd:         { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_healthy }
+      rspamd: { condition: service_healthy }
     environment:
       <<: *sentio-env
     ports:
-      - "25:25"            # SMTP MX  (edit / remove for laptops behind NAT)
-      - "465:465"          # SMTPS
-      - "587:587"          # Submission (STARTTLS)
-      - "8080:8080"        # REST API
+      - "25:25" # SMTP MX  (edit / remove for laptops behind NAT)
+      - "465:465" # SMTPS
+      - "587:587" # Submission (STARTTLS)
       # - "9090:9090"      # Prometheus metrics - unauth; keep internal
     volumes:
       - sentio_data:/var/lib/sentio
