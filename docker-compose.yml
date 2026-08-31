@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Sentio SMTP - OSS quickstart docker-compose stack
 #
-#   docker compose up -d              # pull the published image + start everything
-#   docker compose logs -f sentio     # tail app logs
-#   docker compose down -v            # stop and wipe volumes
+#   docker compose up -d          # pull the published image + start everything
+#   docker compose logs -f sentio # tail app logs
+#   docker compose down -v        # stop and wipe volumes
 #
 # What runs:
 #   sentio         - the SMTP + REST API server (ports 25, 465, 587, 8080)
@@ -16,12 +16,12 @@
 #   clamav         - antivirus (attachment scanning, port 3310)
 #   rspamd         - spam scorer (port 11333)
 #
-# Bootstrap credentials (migration 007 auto-seeds these):
+# Bootstrap credentials (the seed migration auto-seeds these):
 #   Tenant ID : 00000000-0000-0000-0000-000000000001 ("Sentio Platform")
 #   API key   : sentio_bootstrap_admin_CHANGE_ME
 #
-#   ⚠ Rotate the API key immediately if this host is reachable from the
-#     internet. See README-docker.md.
+# ⚠ Rotate the API key immediately if this host is reachable from the
+#   internet. See README-docker.md.
 #
 # DNS / DNSBL note:
 #   Sentio and rspamd use Docker's embedded DNS by default. Spamhaus
@@ -30,6 +30,15 @@
 #   production, either (a) register a free Spamhaus Data Query Service key
 #   and rewrite the DNSBL lists to use <key>.zen.dq.spamhaus.net, or
 #   (b) add an unbound recursive resolver service and point everything at it.
+#
+# ── LOCAL: config baked into images instead of bind-mounted ──────────────────
+#   nats, minio-init and rspamd build thin local images that COPY their config
+#   in. Coolify rewrites relative bind mounts to a host path under
+#   /data/coolify/applications/<uuid>/ but does not check the repo files out
+#   there, so Docker auto-created empty DIRECTORIES named nats-server.conf and
+#   init.sh, and nats died with "not a directory". Building removes the
+#   dependency on host state entirely.
+#   See docker/{nats,minio,rspamd}/Dockerfile
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: sentio-oss
@@ -82,11 +91,12 @@ services:
     networks: [sentio_net]
 
   nats:
-    image: nats:2.11-alpine
+    # LOCAL: was `image: nats:2.11-alpine` + bind mount of nats-server.conf
+    build:
+      context: ./docker/nats
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats-server.conf"]
     volumes:
-      - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - nats_data:/data
     healthcheck:
       test:
@@ -113,7 +123,9 @@ services:
     networks: [sentio_net]
 
   minio-init:
-    image: quay.io/minio/mc:latest
+    # LOCAL: was `image: quay.io/minio/mc:latest` + bind mount of init.sh
+    build:
+      context: ./docker/minio
     restart: "no"
     depends_on:
       minio: { condition: service_healthy }
@@ -122,8 +134,6 @@ services:
       MINIO_ROOT_USER: "${MINIO_USER}"
       MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"
       SENTIO_BUCKET: "sentio-attachments"
-    volumes:
-      - ./docker/minio/init.sh:/init.sh:ro
     entrypoint: ["/bin/sh", "/init.sh"]
     networks: [sentio_net]
 
@@ -146,12 +156,13 @@ services:
     networks: [sentio_net]
 
   rspamd:
-    image: rspamd/rspamd:latest
+    # LOCAL: was `image: rspamd/rspamd:latest` + bind mount of local.d/
+    build:
+      context: ./docker/rspamd
     restart: unless-stopped
     depends_on:
       redis: { condition: service_healthy }
     volumes:
-      - ./docker/rspamd/local.d:/etc/rspamd/local.d:ro
       - rspamd_data:/var/lib/rspamd
     healthcheck:
       test: ["CMD", "rspamadm", "control", "stat"]
@@ -186,10 +197,20 @@ services:
     environment:
       <<: *sentio-env
     ports:
-      - "25:25" # SMTP MX  (edit / remove for laptops behind NAT)
+      - "25:25" # SMTP MX (edit / remove for laptops behind NAT)
       - "465:465" # SMTPS
       - "587:587" # Submission (STARTTLS)
-      # - "9090:9090"      # Prometheus metrics - unauth; keep internal
+      # - "9090:9090" # Prometheus metrics - unauth; keep internal
+    # LOCAL: these labels live here, not in docker-compose.override.yml -
+    # Coolify runs compose with an explicit -f, which stops the override file
+    # from being auto-loaded. Delete this block if you set the domain in the
+    # Coolify UI instead and let Coolify generate its own labels.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.sentio.rule=Host(`${SENTIO_HOSTNAME}`)
+      - traefik.http.routers.sentio.entrypoints=https
+      - traefik.http.routers.sentio.tls.certresolver=letsencrypt
+      - traefik.http.services.sentio.loadbalancer.server.port=8080
     volumes:
       - sentio_data:/var/lib/sentio
       # Mount your own cert bundle at /etc/sentio/tls/ to enable STARTTLS +
